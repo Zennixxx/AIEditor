@@ -44,6 +44,7 @@
         "tileWidth": { "type": "integer" },
         "tileHeight": { "type": "integer" },
         "columns": { "type": "integer" },
+        "rows": { "type": "integer", "minimum": 1, "description": "строк плиток в одном атласе; по умолчанию = columns" },
         "count": { "type": "integer" },
         "sprites": { "type": "array", "items": { "type": "string" } }
       }
@@ -510,6 +511,36 @@
         "trackId": { "type": "string" }
       }
     },
+    "OpUpdateTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "trackId", "patch"],
+      "properties": {
+        "op": { "const": "updateTrack" },
+        "trackId": { "type": "string" },
+        "patch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "muted": { "type": "boolean" },
+            "locked": { "type": "boolean" },
+            "hidden": { "type": "boolean" },
+            "volume": { "type": "number", "minimum": 0, "maximum": 2 }
+          }
+        }
+      }
+    },
+    "OpMoveTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "trackId", "index"],
+      "properties": {
+        "op": { "const": "moveTrack" },
+        "trackId": { "type": "string" },
+        "index": { "type": "integer", "minimum": 0 }
+      }
+    },
     "OpAddClip": {
       "type": "object",
       "additionalProperties": false,
@@ -685,6 +716,8 @@
       "oneOf": [
         { "$ref": "#/definitions/OpAddTrack" },
         { "$ref": "#/definitions/OpRemoveTrack" },
+        { "$ref": "#/definitions/OpUpdateTrack" },
+        { "$ref": "#/definitions/OpMoveTrack" },
         { "$ref": "#/definitions/OpAddClip" },
         { "$ref": "#/definitions/OpUpdateClip" },
         { "$ref": "#/definitions/OpMoveClip" },

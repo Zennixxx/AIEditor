@@ -69,6 +69,7 @@ async def make_thumbs(
         tile_width=TILE_W,
         tile_height=TILE_H,
         columns=COLUMNS,
+        rows=ROWS,
         count=count,
         sprites=[f"{url_prefix}/{i}.jpg" for i in range(sprites)],
     )

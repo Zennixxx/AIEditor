@@ -40,6 +40,8 @@ export type CutOrder = 'sequential' | 'random' | 'bestMoments'
 export type EditOp =
   | OpAddTrack
   | OpRemoveTrack
+  | OpUpdateTrack
+  | OpMoveTrack
   | OpAddClip
   | OpUpdateClip
   | OpMoveClip
@@ -246,6 +248,10 @@ export interface Thumbs {
   tileWidth: number
   tileHeight: number
   columns: number
+  /**
+   * строк плиток в одном атласе; по умолчанию = columns
+   */
+  rows?: number
   count: number
   sprites: string[]
 }
@@ -527,6 +533,22 @@ export interface OpAddTrack {
 export interface OpRemoveTrack {
   op: 'removeTrack'
   trackId: string
+}
+export interface OpUpdateTrack {
+  op: 'updateTrack'
+  trackId: string
+  patch: {
+    name?: string
+    muted?: boolean
+    locked?: boolean
+    hidden?: boolean
+    volume?: number
+  }
+}
+export interface OpMoveTrack {
+  op: 'moveTrack'
+  trackId: string
+  index: number
 }
 export interface OpAddClip {
   op: 'addClip'

@@ -349,6 +349,7 @@ class Thumbs(BaseModel):
     tile_width: int = Field(...)
     tile_height: int = Field(...)
     columns: int
+    rows: int | None = Field(None, description="строк плиток в одном атласе; по умолчанию = columns", ge=1)
     count: int
     sprites: list[str]
 
@@ -861,6 +862,41 @@ class OpRemoveTrack(BaseModel):
     track_id: str = Field(...)
 
 
+class Patch(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    name: str | None = None
+    muted: bool | None = None
+    locked: bool | None = None
+    hidden: bool | None = None
+    volume: float | None = Field(None, ge=0.0, le=2.0)
+
+
+class OpUpdateTrack(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    op: Literal["updateTrack"] = "updateTrack"
+    track_id: str = Field(...)
+    patch: Patch
+
+
+class OpMoveTrack(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    op: Literal["moveTrack"] = "moveTrack"
+    track_id: str = Field(...)
+    index: int = Field(..., ge=0)
+
+
 class OpAddClip(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1048,6 +1084,8 @@ class OpSnapClipEdgesToMarkers(BaseModel):
 type EditOp = (
     OpAddTrack
     | OpRemoveTrack
+    | OpUpdateTrack
+    | OpMoveTrack
     | OpAddClip
     | OpUpdateClip
     | OpMoveClip

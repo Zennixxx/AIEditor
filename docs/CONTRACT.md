@@ -173,7 +173,7 @@ interface Asset {
 }
 
 // thumbs.json
-interface Thumbs { interval: number; tileWidth: number; tileHeight: number; columns: number; count: number; sprites: string[] } // sprites — URL JPG-атласов
+interface Thumbs { interval: number; tileWidth: number; tileHeight: number; columns: number; rows?: number; count: number; sprites: string[] } // sprites — URL JPG-атласов; rows по умолчанию = columns; атлас кадра i = floor(i / (columns·rows))
 
 // waveform.json — пики для отрисовки
 interface Waveform { sampleRate: number; samplesPerPeak: number; channels: 1; peaks: number[] } // пары [min,max,min,max,…], int8 -128..127
@@ -262,6 +262,8 @@ interface TimeRemap {
 type EditOp =
   | { op: "addTrack"; track: Omit<Track, "items"> & { items?: [] }; index?: number }
   | { op: "removeTrack"; trackId: string }
+  | { op: "updateTrack"; trackId: string; patch: Partial<Pick<Track, "name" | "muted" | "locked" | "hidden" | "volume">> }
+  | { op: "moveTrack"; trackId: string; index: number }  // индекс в project.tracks (порядок отрисовки снизу вверх)
   | { op: "addClip"; trackId: string; clip: Omit<Clip, "id"> & { id?: string } }
   | { op: "updateClip"; clipId: string; patch: Partial<Omit<Clip, "id" | "type">> }
   | { op: "moveClip"; clipId: string; start: number; trackId?: string }
@@ -295,6 +297,17 @@ interface OpsResult { ops: EditOp[]; explanation: string; warnings?: string[] }
 ```
 
 Временные ID в ops (`id`, начинающиеся с `tmp_`) допустимы: на них можно ссылаться в последующих ops того же списка; фронт заменяет их на настоящие.
+
+### 6.1 Семантика примитивных ops
+
+Обе стороны (фронт — `applyOps`, бэк — сухой прогон в `validate_ops`) обязаны давать одинаковый результат:
+
+1. `splitClip` у клипа с `timeRemap`: обе половины получают ключи, обрезанные по `u` и перенормированные в [0,1], и `fit: "stretch"` с точными диапазонами `[sourceIn, src(τ)]` / `[src(τ), sourceOut]` (стык непрерывен). Для `reverse` левая половина берёт конец диапазона исходника. Маркеры клипа уходят в половину, чей source-диапазон их содержит (ID сохраняются, `anchor.clipId` переадресуется); эффекты клипа — по своему `start`; ключи `transform/opacity/volume` делятся с граничным ключом.
+2. `setTimeRemap(null)` сохраняет слот и потреблённый диапазон: `sourceOut` = фактический, `speed = (sourceOut − sourceIn) / duration`.
+3. `removeClip(ripple)` сдвигает влево на `duration` только элементы той же дорожки, начинающиеся не раньше конца удалённого.
+4. `project.duration` пересчитывается после каждой транзакции как максимум `start + duration` по всем элементам дорожек.
+5. `addClip` с `assetId`, которого нет в `project.assets`, копирует метаданные ассета из библиотеки (`GET /assets`), иначе ошибка `asset_not_found`.
+6. Инвариант 3 для `image`: верхняя граница `asset.duration` (= 0) не проверяется; `sourceIn/sourceOut` — условные (`0 … duration·speed`).
 
 ## 7. Реестр эффектов (`shared/effects.json`)
 
