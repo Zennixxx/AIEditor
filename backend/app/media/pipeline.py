@@ -1,7 +1,7 @@
 """Импорт медиа и цепочка производных файлов — docs/BACKEND.md, фаза 1.
 
-Видео: proxy → thumbs → waveform (+ audio.m4a, если есть звук) → mezzanine (если нужно).
-Аудио: audio.m4a (задача kind="proxy") → waveform. Изображения: сразу `ready`, без задач.
+Видео: proxy → thumbs → audio → waveform (два последних — если есть звук) → mezzanine
+(если нужно). Аудио: audio → waveform. Изображения: сразу `ready`, без задач.
 
 Шаги — отдельные задачи `JobManager`, каждая ждёт предыдущую (`depends_on`) и не
 падает из-за её ошибки: недостающий вход берётся из оригинала. Когда все шаги
@@ -173,11 +173,12 @@ class MediaService:
             steps.append(("proxy", "Прокси 720p", self._step_proxy))
             steps.append(("thumbs", "Превью-кадры", self._step_thumbs))
             if info.has_audio:
-                steps.append(("waveform", "Звук и waveform", self._step_waveform))
+                steps.append(("audio", "Звук AAC", self._step_audio))
+                steps.append(("waveform", "Waveform", self._step_waveform))
             if info.needs_mezzanine:
                 steps.append(("mezzanine", "Mezzanine H.264", self._step_mezzanine))
         elif info.kind == "audio":
-            steps.append(("proxy", "Аудио AAC", self._step_audio))
+            steps.append(("audio", "Звук AAC", self._step_audio))
             steps.append(("waveform", "Waveform", self._step_waveform))
         if not steps:
             return []
@@ -248,19 +249,10 @@ class MediaService:
         return self._set_derived(asset_id, "proxy")
 
     async def _step_audio(self, ctx: JobContext, tools: Tools, info: MediaInfo, asset_id: str) -> Asset:
-        await self._ensure_audio(ctx.progress, tools, info, asset_id)
-        return self._set_derived(asset_id, "audio")
-
-    async def _ensure_audio(
-        self, progress: Callable[[float], None], tools: Tools, info: MediaInfo, asset_id: str
-    ) -> Path:
-        existing = self._derived_file(asset_id, "audio")
-        if existing is not None:
-            return existing
         dst = self._dir(asset_id) / DERIVED_FILES["audio"]
-        await make_audio(tools.ffmpeg, self._source(asset_id), dst, info.duration, progress)
-        self._set_derived(asset_id, "audio")
-        return dst
+        if self._derived_file(asset_id, "audio") is None:
+            await make_audio(tools.ffmpeg, self._source(asset_id), dst, info.duration, ctx.progress)
+        return self._set_derived(asset_id, "audio")
 
     async def _step_thumbs(self, ctx: JobContext, tools: Tools, info: MediaInfo, asset_id: str) -> Asset:
         if self._derived_file(asset_id, "thumbs") is None:
@@ -278,11 +270,8 @@ class MediaService:
 
     async def _step_waveform(self, ctx: JobContext, tools: Tools, info: MediaInfo, asset_id: str) -> Asset:
         if self._derived_file(asset_id, "waveform") is None:
-            audio = await self._ensure_audio(lambda p: ctx.progress(p * 0.6), tools, info, asset_id)
-            ctx.progress(0.6, "Waveform")
-            wf = await make_waveform(
-                tools.ffmpeg, audio, info.duration, lambda p: ctx.progress(0.6 + p * 0.4)
-            )
+            src = self._derived_file(asset_id, "audio") or self._source(asset_id)
+            wf = await make_waveform(tools.ffmpeg, src, info.duration, ctx.progress)
             atomic.write_json(self._dir(asset_id) / DERIVED_FILES["waveform"], dump(wf))
         return self._set_derived(asset_id, "waveform")
 

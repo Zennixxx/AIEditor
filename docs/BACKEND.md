@@ -66,6 +66,7 @@ data/presets.json
   - thumbs: 1 кадр/с (≤ 600 шт; для длинных — шаг больше), тайл 160×90, атласы 10×10 JPG q=80.
   - waveform: моно 22050 Гц, пики min/max на 256 сэмплов, int8.
   - mezzanine: полное разрешение, `-crf 16 -preset medium -pix_fmt yuv420p`.
+  - [x] audio.m4a — отдельная задача kind `audio` (CONTRACT v1.2): у видео со звуком proxy → thumbs → audio → waveform → mezzanine, у аудио audio → waveform.
 - [x] Прогресс ffmpeg из `-progress pipe:1` (out_time_us / duration).
 - [x] Отдача файлов с Range (`206 Partial Content`), корректные `Content-Type`, `Accept-Ranges`.
 - [x] Событие WS `asset` при каждом новом производном файле.
@@ -80,7 +81,7 @@ data/presets.json
 ✅ Фаза 1 закрыта 2026-10-05: pytest/ruff/pyright зелёные (медиа-тесты требуют ffmpeg: `tools/bin`, `FFMPEG_PATH`/`FFPROBE_PATH` или PATH, иначе skip). Детали реализации:
 - `media/ffmpeg.py` — `subprocess.Popen` + потоки, а не `asyncio.subprocess`: uvicorn с `--reload` на Windows работает на SelectorEventLoop. Отмена корутины убивает процесс.
 - `JobManager.submit(depends_on=[…])`: шаги цепочки ждут предыдущий, не занимая слот ресурса; ошибка шага не роняет следующий (вход берётся из оригинала). Статус ассета `ready`/`failed` выставляет сторож после всех шагов (+ WS `asset`); прерванный импорт продолжается при старте.
-- audio.m4a: у видео со звуком создаётся в задаче `waveform`, у аудио — в задаче kind `proxy` (отдельного JobKind нет, см. CONTRACT_CHANGES).
+- audio.m4a — задача kind `audio` (CONTRACT v1.2); waveform строится из audio.m4a, а если его нет — из оригинала.
 - `/assets/upload` принимает поля `files[]` и `files`; файл кладётся в `data/uploads/{sha1[:16]}/{имя}` — повторная загрузка того же содержимого даёт тот же ассет.
 - Проекты: `PUT` с `id` в теле ≠ пути → 400 `project_id_mismatch`; `createdAt` хранит сервер.
 

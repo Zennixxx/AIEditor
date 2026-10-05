@@ -114,6 +114,10 @@ def _wait_asset(client: TestClient, asset_id: str) -> dict[str, Any]:
     return wait_until(ready)
 
 
+def _job_kinds(client: TestClient, body: dict[str, Any]) -> list[str]:
+    return [client.get(f"/api/jobs/{j['jobId']}").json()["kind"] for j in body["jobs"]]
+
+
 def _import(client: TestClient, path: Path) -> dict[str, Any]:
     r = client.post("/api/assets/import", json={"paths": [str(path)]})
     assert r.status_code == 200, r.text
@@ -135,11 +139,16 @@ def test_import_video_creates_all_derived(client: TestClient, settings: Any, med
         assert (asset["kind"], asset["codec"], asset["width"], asset["height"]) == ("video", "h264", 640, 360)
         assert asset["fps"] == 30 and asset["hasAudio"] and asset["browserDecodable"]
         assert asset["duration"] == pytest.approx(5.0, abs=0.1)
-        assert len(body["jobs"]) == 3  # proxy, thumbs, waveform (mezzanine не нужен)
+        # mezzanine не нужен; audio.m4a — отдельная задача kind "audio" (CONTRACT v1.2)
+        assert _job_kinds(client, body) == ["proxy", "thumbs", "audio", "waveform"]
 
         asset_events: list[dict[str, Any]] = []
+        job_events: dict[str, list[dict[str, Any]]] = {}
         while True:
             msg = ws.receive_json()
+            if msg["type"] == "job":
+                validate(msg, "WsJob")
+                job_events.setdefault(msg["job"]["kind"], []).append(msg["job"])
             if msg["type"] == "asset":
                 validate(msg, "WsAsset")
                 asset_events.append(msg["asset"])
@@ -161,6 +170,11 @@ def test_import_video_creates_all_derived(client: TestClient, settings: Any, med
     seen = [set(e["derived"]) for e in asset_events]
     for key in ("proxy", "thumbs", "audio", "waveform"):
         assert any(key in s for s in seen), key
+    # WS job: у каждого шага цепочки есть событие done, задачи kind "import" нет
+    assert set(job_events) == {"proxy", "thumbs", "audio", "waveform"}
+    for kind, events in job_events.items():
+        assert events[-1]["status"] == "done", kind
+        assert all(e["assetId"] == aid for e in events)
 
     for job in body["jobs"]:
         j = client.get(f"/api/jobs/{job['jobId']}").json()
@@ -177,7 +191,7 @@ def test_import_video_creates_all_derived(client: TestClient, settings: Any, med
     thumbs = client.get(final["derived"]["thumbs"]).json()
     Thumbs.model_validate(thumbs)
     validate(thumbs, "Thumbs")
-    assert thumbs["interval"] == 1 and thumbs["columns"] == 10
+    assert thumbs["interval"] == 1 and (thumbs["columns"], thumbs["rows"]) == (10, 10)
     assert (thumbs["tileWidth"], thumbs["tileHeight"]) == (160, 90)
     assert 5 <= thumbs["count"] <= 6
     assert thumbs["sprites"] == [f"/api/assets/{aid}/thumbs/0.jpg"]
@@ -227,7 +241,7 @@ def test_import_audio(client: TestClient, media_dir: Path) -> None:
     [asset] = body["assets"]
     assert (asset["kind"], asset["codec"], asset["hasAudio"]) == ("audio", "pcm_s16le", True)
     assert "width" not in asset and "fps" not in asset
-    assert len(body["jobs"]) == 2
+    assert _job_kinds(client, body) == ["audio", "waveform"]
     final = _wait_asset(client, asset["id"])
     assert final["status"] == "ready"
     validate(final, "Asset")
@@ -243,6 +257,7 @@ def test_non_browser_codec_gets_mezzanine(client: TestClient, settings: Any, med
     body = _import(client, media_dir / "legacy.avi")
     [asset] = body["assets"]
     assert asset["codec"] == "mpeg4" and asset["browserDecodable"] is False and asset["hasAudio"] is False
+    assert _job_kinds(client, body) == ["proxy", "thumbs", "mezzanine"]
     final = _wait_asset(client, asset["id"])
     assert final["status"] == "ready"
     assert set(final["derived"]) == {"proxy", "thumbs", "mezzanine"}
