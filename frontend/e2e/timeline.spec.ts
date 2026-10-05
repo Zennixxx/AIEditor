@@ -7,7 +7,7 @@ const V1_CENTER_Y = RULER_H + 32
 test('import → drag asset to timeline → Ctrl+K splits → Ctrl+Z undoes', async ({ page }) => {
   await page.goto('/')
 
-  // импорт (MSW: POST /assets/upload → задачи import/proxy/thumbs/waveform + WS-события asset)
+  // импорт (MSW: POST /assets/upload → цепочка proxy/thumbs/audio/waveform, CONTRACT §8.1)
   await page.getByTestId('media-import-input').setInputFiles({
     name: 'e2e_clip.mp4',
     mimeType: 'video/mp4',
@@ -15,9 +15,11 @@ test('import → drag asset to timeline → Ctrl+K splits → Ctrl+Z undoes', as
   })
   const card = page.getByTestId('asset-card').filter({ hasText: 'e2e_clip.mp4' })
   await expect(card).toBeVisible()
-  await expect(card).toHaveAttribute('data-status', 'ready')
-  // после импорта по WS идут задачи производных файлов — прогресс виден на карточке
+  // пока идут задачи производных файлов — ассет `importing`, прогресс виден на карточке
+  await expect(card).toHaveAttribute('data-status', 'importing')
   await expect(card.getByTestId('asset-job').first()).toBeVisible()
+  // готовность — WS-событие asset со status "ready" после всей цепочки
+  await expect(card).toHaveAttribute('data-status', 'ready', { timeout: 10_000 })
 
   const timeline = page.getByTestId('timeline')
   const canvas = timeline.locator('canvas')

@@ -1,4 +1,5 @@
-// Глобальные горячие клавиши редактора (фаза 1a: правка таймлайна; воспроизведение — 1b).
+// Глобальные горячие клавиши редактора: правка таймлайна и транспорт (Space, J/K/L, ←/→, Home/End).
+import { player } from '@/playback/player'
 import { useUi } from '@/store/ui'
 import * as actions from './actions'
 
@@ -25,6 +26,16 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (mod && (code === 'KeyC' || key === 'c')) return run(actions.copySelection)
   if (mod && (code === 'KeyV' || key === 'v')) return run(actions.paste)
   if (mod || e.altKey) return false
+
+  // транспорт (по e.code — в любой раскладке)
+  if (code === 'Space' || key === ' ') return e.repeat || run(() => player.toggle())
+  if (code === 'KeyJ') return run(() => player.shuttle(-1))
+  if (code === 'KeyK') return run(() => player.pause())
+  if (code === 'KeyL') return run(() => player.shuttle(1))
+  if (!e.shiftKey && key === 'arrowleft') return run(() => player.step(-1))
+  if (!e.shiftKey && key === 'arrowright') return run(() => player.step(1))
+  if (key === 'home') return run(() => player.home())
+  if (key === 'end') return run(() => player.end())
 
   if (key === 'delete' || key === 'backspace') {
     actions.deleteSelection(e.shiftKey)
@@ -53,6 +64,14 @@ export function installHotkeys(): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (handleHotkey(e)) e.preventDefault()
   }
+  // Space на кнопке в фокусе «нажимает» её на keyup — для транспорта это не нужно
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.code === 'Space' && !isTyping(e.target)) e.preventDefault()
+  }
   window.addEventListener('keydown', onKey)
-  return () => window.removeEventListener('keydown', onKey)
+  window.addEventListener('keyup', onKeyUp)
+  return () => {
+    window.removeEventListener('keydown', onKey)
+    window.removeEventListener('keyup', onKeyUp)
+  }
 }

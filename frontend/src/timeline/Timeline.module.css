@@ -41,6 +41,17 @@
 
 .trackHeader[data-kind='audio'] {
   --track-color: #2b7a5a;
+  flex-wrap: wrap;
+  align-content: center;
+  row-gap: 4px;
+}
+
+.volume {
+  flex: 1 0 100%;
+  height: 12px;
+  margin: 0 0 0 12px;
+  accent-color: var(--track-color);
+  cursor: pointer;
 }
 
 .trackHeader[data-kind='fx'] {

@@ -78,11 +78,15 @@ frontend/src/
 **1a готово** (2026-10-05): typecheck, lint, Vitest и Playwright (mock: импорт → drag на таймлайн → `Ctrl+K` → `Ctrl+Z`) зелёные.
 
 ### 1.5 Воспроизведение
-- [ ] Мастер-часы по `AudioContext.currentTime`; `Space` — play/pause, `J/K/L` — назад/стоп/вперёд (повторное нажатие ×2), `←/→` — кадр, `Home/End`.
-- [ ] `videoPool`: по одному `<video>` на активный клип (+ предзагрузка следующего за 2 с), источник — `proxy.mp4`; коррекция дрейфа: если расхождение > 1 кадра — `currentTime` правится, если > 0.1 с — seek.
-- [ ] Аудио: декодирование `audio.m4a` в `AudioBuffer` (кэш), планирование `AudioBufferSourceNode` от мастер-часов, громкость/mute дорожек.
-- [ ] Превью-панель пока рисует кадр верхнего видимого клипа через 2D canvas (WebGL придёт в фазе 4).
-- [ ] Скраб плейхеда: при быстром движении показывать кадр из атласа thumbs, на паузе — точный seek.
+- [x] Мастер-часы по `AudioContext.currentTime`; `Space` — play/pause, `J/K/L` — назад/стоп/вперёд (повторное нажатие ×2), `←/→` — кадр, `Home/End`. _(`playback/clock.ts`: до жеста пользователя часы идут по `performance.now()` и бесшовно переходят на AudioContext; `playback/player.ts` — транспорт; шаттл до ×8, назад — без звука)_
+- [x] `videoPool`: по одному `<video>` на активный клип (+ предзагрузка следующего за 2 с), источник — `proxy.mp4`; коррекция дрейфа: если расхождение > 1 кадра — `currentTime` правится, если > 0.1 с — seek. _(> 1 кадра — плавная подстройка `playbackRate` ±25 %, > 0.1 с — seek; reverse и скорости вне 1/16…16 — покадровый seek; `playback/drift.ts`)_
+- [x] Аудио: декодирование `audio.m4a` в `AudioBuffer` (кэш), планирование `AudioBufferSourceNode` от мастер-часов, громкость/mute дорожек. _(`playback/audioPlan.ts` + `audioEngine.ts`: окно 2 с, solo, громкость дорожки (ползунок в заголовке, op `updateTrack`) × громкость клипа (ключи — кривой), speed/timeRemap — `playbackRate`, reverse — развёрнутый буфер)_
+- [x] Превью-панель пока рисует кадр верхнего видимого клипа через 2D canvas (WebGL придёт в фазе 4). _(cover-вписывание, speed/reverse/timeRemap через `model/clipTime` → `model/timeRemap`; изображения — `/original`; транспорт-кнопки под превью)_
+- [x] Скраб плейхеда: при быстром движении показывать кадр из атласа thumbs, на паузе — точный seek.
+
+Доводка под контракт v1.2/v1.3: `updateTrack`/`moveTrack` в `applyOps` (заголовки дорожек переведены на них), `Thumbs.rows`, MSW-импорт без задачи `import` (цепочка `proxy`/`thumbs`/`audio`/`waveform`, готовность — WS `asset` `ready`), моки отдают проигрываемые `proxy.mp4` (Mediabunny + WebCodecs в браузере, с Range/206) и `audio.m4a` (WAV), waveform 256 сэмплов/пик.
+
+**1b готово** (2026-10-05): typecheck, lint, Vitest и Playwright (mock: Space — плейхед движется и кадр из proxy, Space — стоп, Home — 0; ←/→/End) зелёные. Чек-лист Инт.1 с реальным бэком — у оркестратора.
 
 **Готово, когда:** чек-лист Инт.1 из `PLAN.md`.
 

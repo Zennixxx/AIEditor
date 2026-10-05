@@ -171,6 +171,10 @@ class Tx {
         this.p.tracks.splice(this.p.tracks.indexOf(t), 1)
         return
       }
+      case 'updateTrack':
+        return this.updateTrack(op.trackId, op.patch)
+      case 'moveTrack':
+        return this.moveTrack(op.trackId, op.index)
       case 'addClip':
         return this.addClip(op.trackId, op.clip)
       case 'updateClip':
@@ -248,6 +252,35 @@ class Tx {
     if (input.volume !== undefined) track.volume = input.volume
     const at = index === undefined ? this.p.tracks.length : Math.max(0, Math.min(index, this.p.tracks.length))
     this.p.tracks.splice(at, 0, track)
+  }
+
+  private updateTrack(trackId: string, patch: Extract<EditOp, { op: 'updateTrack' }>['patch']): void {
+    const track = this.track(trackId)
+    if (patch.name !== undefined && !(typeof patch.name === 'string' && patch.name.trim())) {
+      throw new OpsError('bad_value', 'Имя дорожки не может быть пустым')
+    }
+    for (const flag of ['muted', 'locked', 'hidden'] as const) {
+      if (patch[flag] !== undefined && typeof patch[flag] !== 'boolean') {
+        throw new OpsError('bad_value', `${flag} должно быть boolean`)
+      }
+    }
+    if (patch.volume !== undefined) {
+      if (track.kind !== 'audio') throw new OpsError('bad_value', 'Громкость есть только у аудиодорожки')
+      assertFinite(patch.volume, 'volume')
+      if (patch.volume < 0 || patch.volume > 2) throw new OpsError('bad_value', 'volume вне 0..2')
+    }
+    assignDefined(track, patch)
+  }
+
+  /** Переставляет дорожку на позицию `index` итогового project.tracks (за пределами — к краю, как addTrack). */
+  private moveTrack(trackId: string, index: number): void {
+    const track = this.track(trackId)
+    if (!Number.isInteger(index) || index < 0) throw new OpsError('bad_value', 'index должен быть целым ≥ 0')
+    const from = this.p.tracks.indexOf(track)
+    const to = Math.min(index, this.p.tracks.length - 1)
+    if (from === to) return
+    this.p.tracks.splice(from, 1)
+    this.p.tracks.splice(to, 0, track)
   }
 
   private addClip(trackId: string, input: Extract<EditOp, { op: 'addClip' }>['clip']): void {

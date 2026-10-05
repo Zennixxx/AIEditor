@@ -1,10 +1,24 @@
 // MSW-моки API бэка (CONTRACT §8) поверх shared/fixtures.
 // Долгие операции имитируются задачами с прогрессом через WS-события.
 import { delay, http, HttpResponse, ws } from 'msw'
-import type { Asset, Job, JobKind, Project, ProjectListItem, Thumbs, WsEvent } from '@/shared/types.gen'
+import type {
+  Asset,
+  ImportResponse,
+  Job,
+  JobKind,
+  Project,
+  ProjectListItem,
+  Thumbs,
+  Waveform,
+  WsEvent,
+} from '@/shared/types.gen'
 import { newId } from '@/shared/ids'
 import { API_BASE, WS_URL } from '../config'
 import { clone, fixtures } from './fixtures'
+import { encodeWav, mockAudio, mockProxy, rangeResponse, waveformOf } from './media'
+
+/** Музыкальный ассет фикстур — его waveform лежит в shared/fixtures/waveform_music.json. */
+const FIXTURE_MUSIC_ID = 'ast_c0ffee1234abcd56'
 
 const url = (path: string) => API_BASE + path
 const events = ws.link(WS_URL)
@@ -22,16 +36,20 @@ function notFound(code: string, message: string) {
   return HttpResponse.json({ error: { code, message } }, { status: 404 })
 }
 
-function runJob(
-  kind: JobKind,
-  opts: { assetId?: string; durationMs?: number; result?: () => unknown; onDone?: () => void } = {},
-): Job {
+function registerJob(kind: JobKind, assetId?: string): Job {
   const now = new Date().toISOString()
   const job: Job = { id: newId('job'), kind, status: 'queued', progress: 0, createdAt: now, updatedAt: now }
-  if (opts.assetId) job.assetId = opts.assetId
+  if (assetId) job.assetId = assetId
   jobs.set(job.id, job)
   broadcast({ type: 'job', job: clone(job) })
+  return job
+}
 
+/** Прогресс задачи по таймеру; по завершении — result/onDone и WS-событие. */
+function driveJob(
+  job: Job,
+  opts: { durationMs?: number; result?: () => unknown; onDone?: () => void } = {},
+): void {
   const steps = 8
   let step = 0
   const timer = setInterval(
@@ -54,24 +72,45 @@ function runJob(
     (opts.durationMs ?? 1500) / steps,
   )
   timers.set(job.id, timer)
+}
+
+function runJob(
+  kind: JobKind,
+  opts: { assetId?: string; durationMs?: number; result?: () => unknown; onDone?: () => void } = {},
+): Job {
+  const job = registerJob(kind, opts.assetId)
+  driveJob(job, opts)
   return job
 }
 
-/** Задачи по цепочке (как на бэке, docs/BACKEND.md): каждая следующая стартует после предыдущей. */
-function runChain(steps: { kind: JobKind; durationMs: number; onDone: () => void }[], assetId: string): void {
-  const [first, ...rest] = steps
-  if (!first) return
-  runJob(first.kind, {
-    assetId,
-    durationMs: first.durationMs,
-    onDone: () => {
-      first.onDone()
-      runChain(rest, assetId)
-    },
-  })
+interface ChainStep {
+  kind: JobKind
+  durationMs: number
+  onDone: () => void
 }
 
-function importAsset(name: string, path: string): { asset: Asset; job: Job } {
+/**
+ * Цепочка производных файлов (CONTRACT §8.1): все задачи регистрируются сразу (queued), выполняются
+ * по очереди; после последней ассет становится `ready` (WS `asset`). Задачи kind `import` нет.
+ */
+function runChain(assetId: string, steps: ChainStep[], onFinish: () => void): Job[] {
+  const registered = steps.map((st) => ({ st, job: registerJob(st.kind, assetId) }))
+  const next = (i: number) => {
+    const cur = registered[i]
+    if (!cur) return onFinish()
+    driveJob(cur.job, {
+      durationMs: cur.st.durationMs,
+      onDone: () => {
+        cur.st.onDone()
+        next(i + 1)
+      },
+    })
+  }
+  next(0)
+  return registered.map((r) => r.job)
+}
+
+function importAsset(name: string, path: string): { asset: Asset; jobs: Job[] } {
   const isAudio = /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(name)
   const isImage = /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
   const id = 'ast_' + newId('x', 16).slice(2)
@@ -85,46 +124,33 @@ function importAsset(name: string, path: string): { asset: Asset; job: Job } {
     hasAudio: !isImage,
     codec: isAudio ? 'mp3' : isImage ? 'png' : 'h264',
     browserDecodable: true,
-    status: 'importing',
+    status: isImage ? 'ready' : 'importing',
     derived: {},
     ...(isAudio ? {} : isImage ? { width: 1920, height: 1080 } : { width: 1920, height: 1080, fps: 30 }),
   }
   assets.set(id, asset)
+  if (isImage) return { asset: clone(asset), jobs: [] } // изображения сразу ready, без задач
   const publish = (derived: Partial<Asset['derived']>) => {
     asset.derived = { ...asset.derived, ...derived }
     broadcast({ type: 'asset', asset: clone(asset) })
   }
-  const chain: Parameters<typeof runChain>[0] = isAudio
+  const steps: ChainStep[] = isAudio
     ? [
-        {
-          kind: 'waveform',
-          durationMs: 800,
-          onDone: () => publish({ audio: `${base}/audio.m4a`, waveform: `${base}/waveform.json` }),
-        },
+        { kind: 'audio', durationMs: 700, onDone: () => publish({ audio: `${base}/audio.m4a` }) },
+        { kind: 'waveform', durationMs: 600, onDone: () => publish({ waveform: `${base}/waveform.json` }) },
       ]
-    : isImage
-      ? []
-      : [
-          {
-            kind: 'proxy',
-            durationMs: 1500,
-            onDone: () => publish({ proxy: `${base}/proxy.mp4`, audio: `${base}/audio.m4a` }),
-          },
-          { kind: 'thumbs', durationMs: 800, onDone: () => publish({ thumbs: `${base}/thumbs.json` }) },
-          { kind: 'waveform', durationMs: 600, onDone: () => publish({ waveform: `${base}/waveform.json` }) },
-        ]
-  // import = ffprobe: после него известны длительность и параметры, ассет готов к работе
-  const job = runJob('import', {
-    assetId: id,
-    durationMs: 600,
-    result: () => clone(asset),
-    onDone: () => {
-      asset.status = 'ready'
-      publish({})
-      runChain(chain, id)
-    },
+    : [
+        { kind: 'proxy', durationMs: 1200, onDone: () => publish({ proxy: `${base}/proxy.mp4` }) },
+        { kind: 'thumbs', durationMs: 600, onDone: () => publish({ thumbs: `${base}/thumbs.json` }) },
+        { kind: 'audio', durationMs: 400, onDone: () => publish({ audio: `${base}/audio.m4a` }) },
+        { kind: 'waveform', durationMs: 400, onDone: () => publish({ waveform: `${base}/waveform.json` }) },
+      ]
+  const chain = runChain(id, steps, () => {
+    // готовность — по наличию основного файла: proxy у видео, audio.m4a у аудио
+    asset.status = (isAudio ? asset.derived.audio : asset.derived.proxy) ? 'ready' : 'failed'
+    publish({})
   })
-  return { asset: clone(asset), job }
+  return { asset: clone(asset), jobs: chain.map(clone) }
 }
 
 const TILE_W = 160
@@ -141,12 +167,47 @@ function thumbsFor(asset: Asset): Thumbs {
     tileWidth: TILE_W,
     tileHeight: TILE_H,
     columns: ATLAS_COLUMNS,
+    rows: ATLAS_COLUMNS,
     count,
     sprites: Array.from(
       { length: Math.ceil(count / per) },
       (_, i) => `/api/assets/${asset.id}/thumbs/${i}.jpg`,
     ),
   }
+}
+
+function importResponse(res: { asset: Asset; jobs: Job[] }[]): ImportResponse {
+  return { assets: res.map((r) => r.asset), jobs: res.flatMap((r) => r.jobs.map((j) => ({ jobId: j.id }))) }
+}
+
+/** Waveform фикстуры — для музыкального демо-ассета, для остальных — по синтетическому звуку (256 сэмплов/пик). */
+function waveformFor(asset: Asset): Waveform {
+  if (asset.id === FIXTURE_MUSIC_ID) return fixtures.waveform
+  return waveformOf(mockAudio(asset.id, Math.max(asset.duration, 0.1)))
+}
+
+/** Картинка-«оригинал» для импортированного изображения. */
+async function renderStill(asset: Asset): Promise<Blob | null> {
+  if (typeof OffscreenCanvas === 'undefined') return null
+  const canvas = new OffscreenCanvas(asset.width ?? 1920, asset.height ?? 1080)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const g = ctx.createRadialGradient(
+    canvas.width / 2,
+    canvas.height / 2,
+    10,
+    canvas.width / 2,
+    canvas.height / 2,
+    canvas.width / 2,
+  )
+  g.addColorStop(0, '#f5b942')
+  g.addColorStop(1, '#3a2a6c')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.fillStyle = '#fff'
+  ctx.font = 'bold 96px sans-serif'
+  ctx.fillText(asset.name, 80, canvas.height / 2)
+  return canvas.convertToBlob({ type: 'image/png' })
 }
 
 /** Синтетический JPG-атлас: цветные плитки с номером кадра (только в браузере — нужен OffscreenCanvas). */
@@ -188,7 +249,36 @@ export const handlers = [
     const a = assets.get(String(params.id))
     return a ? HttpResponse.json(a) : notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
   }),
-  http.get(url('/assets/:id/waveform.json'), () => HttpResponse.json(fixtures.waveform)),
+  http.get(url('/assets/:id/waveform.json'), ({ params }) => {
+    const a = assets.get(String(params.id))
+    if (!a) return notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+    return HttpResponse.json(waveformFor(a))
+  }),
+  // proxy.mp4 / audio.m4a — с поддержкой Range (206), как FileResponse на бэке
+  http.get(url('/assets/:id/proxy.mp4'), async ({ params, request }) => {
+    const a = assets.get(String(params.id))
+    if (!a) return notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+    if (a.kind !== 'video' || !a.derived.proxy) return notFound('file_not_found', 'Прокси ещё не готов')
+    const blob = await mockProxy(a.id, a.name, a.duration)
+    return blob
+      ? rangeResponse(new Uint8Array(await blob.arrayBuffer()), request, blob.type)
+      : notFound('file_not_found', 'Прокси недоступен')
+  }),
+  http.get(url('/assets/:id/audio.m4a'), ({ params, request }) => {
+    const a = assets.get(String(params.id))
+    if (!a) return notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+    if (!a.derived.audio) return notFound('file_not_found', 'Звук ещё не извлечён')
+    // m4a в моке — на деле WAV: decodeAudioData определяет формат по содержимому
+    return rangeResponse(new Uint8Array(encodeWav(mockAudio(a.id, a.duration))), request, 'audio/wav')
+  }),
+  http.get(url('/assets/:id/original'), async ({ params }) => {
+    const a = assets.get(String(params.id))
+    if (!a) return notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+    const blob = a.kind === 'image' ? await renderStill(a) : null
+    return blob
+      ? new HttpResponse(blob, { headers: { 'Content-Type': 'image/png' } })
+      : notFound('file_not_found', 'Оригинал недоступен в моке')
+  }),
   http.get(url('/assets/:id/thumbs.json'), ({ params }) => {
     const a = assets.get(String(params.id))
     return a
@@ -204,13 +294,13 @@ export const handlers = [
   http.post(url('/assets/import'), async ({ request }) => {
     const body = (await request.json()) as { paths: string[] }
     const res = body.paths.map((p) => importAsset(p.split(/[\\/]/).pop() ?? p, p))
-    return HttpResponse.json({ assets: res.map((r) => r.asset), jobs: res.map((r) => ({ jobId: r.job.id })) })
+    return HttpResponse.json(importResponse(res))
   }),
   http.post(url('/assets/upload'), async ({ request }) => {
     const form = await request.formData()
     const files = form.getAll('files').filter((f): f is File => f instanceof File)
     const res = files.map((f) => importAsset(f.name, `D:\\uploads\\${f.name}`))
-    return HttpResponse.json({ assets: res.map((r) => r.asset), jobs: res.map((r) => ({ jobId: r.job.id })) })
+    return HttpResponse.json(importResponse(res))
   }),
   http.post(url('/assets/:id/interpolate'), async ({ params, request }) => {
     const parentId = String(params.id)
