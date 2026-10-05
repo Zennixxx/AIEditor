@@ -33,6 +33,7 @@ export type JobKind =
   | 'autoEdit'
   | 'styleRef'
   | 'debug'
+  | 'audio'
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 export type WsEvent = WsHello | WsJob | WsAsset
 export type CutOrder = 'sequential' | 'random' | 'bestMoments'

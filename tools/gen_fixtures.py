@@ -124,7 +124,7 @@ def music_analysis(rng: random.Random) -> dict[str, Any]:
 
 
 def waveform(rng: random.Random) -> dict[str, Any]:
-    sr, spp = 22050, 1024
+    sr, spp = 22050, 256
     n = int(MUSIC_DURATION * sr / spp)
     peaks: list[int] = []
     for i in range(n):

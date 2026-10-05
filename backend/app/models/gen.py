@@ -595,6 +595,7 @@ type JobKind = Literal[
     "autoEdit",
     "styleRef",
     "debug",
+    "audio",
 ]
 
 

@@ -357,7 +357,7 @@ interface EffectDef {
 ```ts
 interface JobRef { jobId: string }
 interface Job {
-  id: string; kind: "import" | "proxy" | "thumbs" | "waveform" | "mezzanine" | "musicAnalysis" | "stems"
+  id: string; kind: "import" | "proxy" | "thumbs" | "waveform" | "mezzanine" | "audio" | "musicAnalysis" | "stems"
     | "interpolate" | "clipAnalysis" | "aiMusic" | "autoEdit" | "styleRef" | "debug";
   assetId?: string;
   status: "queued" | "running" | "done" | "failed" | "canceled";
@@ -408,6 +408,30 @@ interface EffectPreset {      // пользовательский пресет-�
   effects: { effect: string; start: number; duration: number; params: Record<string, unknown>; envelope: Envelope }[]; // start — от точки применения
 }
 ```
+
+### 8.1 Импорт и готовность ассета
+
+- `POST /assets/import|upload` возвращает ассеты со `status: "importing"` и `jobs` — шаги цепочки (`proxy`, `thumbs`, `waveform`, `mezzanine`, `audio`). Отдельной задачи kind `import` нет (значение зарезервировано).
+- Конец импорта — WS-событие `asset` со `status: "ready"` (или `"failed"`, если у видео не создан proxy / у аудио — audio.m4a). Промежуточные события `asset` приходят при каждом новом производном файле.
+- Повторный импорт готового ассета → тот же ассет и `jobs: []`; идущего — его текущие задачи. Изображения сразу `ready`, без задач.
+
+### 8.2 Коды ошибок
+
+| Эндпоинт | HTTP | `code` | `details` |
+|---|---|---|---|
+| `POST /assets/import`, `/assets/upload` | 400 | `file_not_found` | `paths` |
+| | 400 | `no_files` | — |
+| | 422 | `unsupported_media` | `files: {путь: причина}` |
+| | 503 | `ffmpeg_missing` | — |
+| `GET /assets/{id}…` | 404 | `asset_not_found` | — |
+| | 404 | `file_not_found` | производный файл ещё не готов |
+| `/projects/{id}` | 404 | `project_not_found` | — |
+| `PUT /projects/{id}` | 400 | `project_id_mismatch` | id в теле ≠ id в пути |
+| | 409 | `revision_conflict` | `revision` — текущая ревизия |
+| `/jobs/{id}` | 404 | `job_not_found` | — |
+| любой | 422 | `validation_error` | ошибки валидации |
+
+Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`.
 
 ## 9. Сохранение проекта
 

@@ -264,7 +264,7 @@
       "type": "string",
       "enum": [
         "import", "proxy", "thumbs", "waveform", "mezzanine", "musicAnalysis", "stems",
-        "interpolate", "clipAnalysis", "aiMusic", "autoEdit", "styleRef", "debug"
+        "interpolate", "clipAnalysis", "aiMusic", "autoEdit", "styleRef", "debug", "audio"
       ]
     },
     "JobStatus": {
