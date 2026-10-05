@@ -1,0 +1,10 @@
+{
+  "interval": 1.0,
+  "tileWidth": 160,
+  "tileHeight": 90,
+  "columns": 10,
+  "count": 12,
+  "sprites": [
+    "/api/assets/ast_3f1c9a0b7d2e4c61/thumbs/0.jpg"
+  ]
+}

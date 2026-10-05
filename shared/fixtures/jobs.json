@@ -1,0 +1,47 @@
+[
+  {
+    "id": "job_proxy000001",
+    "kind": "proxy",
+    "assetId": "ast_3f1c9a0b7d2e4c61",
+    "status": "running",
+    "progress": 0.42,
+    "message": "Прокси 720p",
+    "createdAt": "2026-10-05T12:00:00Z",
+    "updatedAt": "2026-10-05T12:00:00Z"
+  },
+  {
+    "id": "job_music000001",
+    "kind": "musicAnalysis",
+    "assetId": "ast_c0ffee1234abcd56",
+    "status": "done",
+    "progress": 1,
+    "result": {
+      "assetId": "ast_c0ffee1234abcd56",
+      "bpm": 128.0
+    },
+    "createdAt": "2026-10-05T12:00:00Z",
+    "updatedAt": "2026-10-05T12:00:00Z"
+  },
+  {
+    "id": "job_interp00001",
+    "kind": "interpolate",
+    "assetId": "ast_3f1c9a0b7d2e4c61",
+    "status": "queued",
+    "progress": 0,
+    "createdAt": "2026-10-05T12:00:00Z",
+    "updatedAt": "2026-10-05T12:00:00Z"
+  },
+  {
+    "id": "job_clipai00001",
+    "kind": "clipAnalysis",
+    "assetId": "ast_8a7e5d4c3b2a1908",
+    "status": "failed",
+    "progress": 0.1,
+    "error": {
+      "code": "gemini_unavailable",
+      "message": "GEMINI_API_KEY не задан"
+    },
+    "createdAt": "2026-10-05T12:00:00Z",
+    "updatedAt": "2026-10-05T12:00:00Z"
+  }
+]

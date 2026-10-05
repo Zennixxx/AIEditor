@@ -1,0 +1,1503 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_demo000001",
+  "name": "Demo phonk edit",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "duration": 96.0,
+  "background": "#000000",
+  "assets": [
+    {
+      "id": "ast_3f1c9a0b7d2e4c61",
+      "kind": "video",
+      "name": "street_run.mp4",
+      "path": "D:\\Footage\\street_run.mp4",
+      "duration": 12.0,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30.0,
+      "hasAudio": true,
+      "codec": "h264",
+      "browserDecodable": true,
+      "status": "ready",
+      "derived": {
+        "proxy": "/api/assets/ast_3f1c9a0b7d2e4c61/proxy.mp4",
+        "thumbs": "/api/assets/ast_3f1c9a0b7d2e4c61/thumbs.json",
+        "audio": "/api/assets/ast_3f1c9a0b7d2e4c61/audio.m4a",
+        "waveform": "/api/assets/ast_3f1c9a0b7d2e4c61/waveform.json"
+      }
+    },
+    {
+      "id": "ast_8a7e5d4c3b2a1908",
+      "kind": "video",
+      "name": "drift_closeup.mov",
+      "path": "D:\\Footage\\drift_closeup.mov",
+      "duration": 8.0,
+      "width": 3840,
+      "height": 2160,
+      "fps": 59.94,
+      "hasAudio": false,
+      "codec": "prores",
+      "browserDecodable": false,
+      "status": "ready",
+      "derived": {
+        "proxy": "/api/assets/ast_8a7e5d4c3b2a1908/proxy.mp4",
+        "thumbs": "/api/assets/ast_8a7e5d4c3b2a1908/thumbs.json",
+        "mezzanine": "/api/assets/ast_8a7e5d4c3b2a1908/mezzanine.mp4"
+      }
+    },
+    {
+      "id": "ast_c0ffee1234abcd56",
+      "kind": "audio",
+      "name": "phonk_track.mp3",
+      "path": "D:\\Music\\phonk_track.mp3",
+      "duration": 96.0,
+      "hasAudio": true,
+      "codec": "mp3",
+      "browserDecodable": true,
+      "status": "ready",
+      "derived": {
+        "audio": "/api/assets/ast_c0ffee1234abcd56/audio.m4a",
+        "waveform": "/api/assets/ast_c0ffee1234abcd56/waveform.json"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "id": "trk_video00001",
+      "kind": "video",
+      "name": "V1",
+      "muted": false,
+      "locked": false,
+      "hidden": false,
+      "items": [
+        {
+          "id": "clp_intro00001",
+          "type": "clip",
+          "assetId": "ast_3f1c9a0b7d2e4c61",
+          "start": 0.0,
+          "duration": 15.0,
+          "sourceIn": 0.0,
+          "sourceOut": 7.5,
+          "speed": 0.5,
+          "reverse": false,
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "scale": 1,
+            "rotation": 0,
+            "anchorX": 0,
+            "anchorY": 0
+          },
+          "opacity": 1,
+          "blendMode": "normal",
+          "effects": [],
+          "markers": [],
+          "label": "intro slow"
+        },
+        {
+          "id": "clp_build00001",
+          "type": "clip",
+          "assetId": "ast_3f1c9a0b7d2e4c61",
+          "start": 15.0,
+          "duration": 15.0,
+          "sourceIn": 0.0,
+          "sourceOut": 12.0,
+          "speed": 0.8,
+          "reverse": false,
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "scale": 1,
+            "rotation": 0,
+            "anchorX": 0,
+            "anchorY": 0
+          },
+          "opacity": 1,
+          "blendMode": "normal",
+          "effects": [],
+          "markers": []
+        },
+        {
+          "id": "clp_drop000001",
+          "type": "clip",
+          "assetId": "ast_3f1c9a0b7d2e4c61",
+          "start": 30.0,
+          "duration": 1.875,
+          "sourceIn": 4.0,
+          "sourceOut": 5.875,
+          "speed": 1,
+          "reverse": false,
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "scale": 1,
+            "rotation": 0,
+            "anchorX": 0,
+            "anchorY": 0
+          },
+          "opacity": 1,
+          "blendMode": "normal",
+          "effects": [
+            {
+              "id": "fx_zoom000001",
+              "type": "effect",
+              "effect": "zoomPunch",
+              "start": 0,
+              "duration": 0.3,
+              "params": {
+                "strength": 1,
+                "amount": 1.15,
+                "centerX": 0,
+                "centerY": 0,
+                "motionBlur": true
+              },
+              "envelope": {
+                "attack": 0.02,
+                "hold": 0,
+                "decay": 0.28,
+                "curve": "easeOut"
+              },
+              "enabled": true
+            }
+          ],
+          "markers": []
+        },
+        {
+          "id": "clp_drop000002",
+          "type": "clip",
+          "assetId": "ast_3f1c9a0b7d2e4c61",
+          "start": 31.875,
+          "duration": 0.9375,
+          "sourceIn": 6.6,
+          "sourceOut": 7.8,
+          "speed": 1,
+          "reverse": false,
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "scale": 1,
+            "rotation": 0,
+            "anchorX": 0,
+            "anchorY": 0
+          },
+          "opacity": 1,
+          "blendMode": "normal",
+          "effects": [],
+          "markers": [],
+          "timeRemap": {
+            "keyframes": [
+              {
+                "u": 0,
+                "speed": 3,
+                "ease": "easeInOut"
+              },
+              {
+                "u": 0.35,
+                "speed": 0.25,
+                "ease": "hold"
+              },
+              {
+                "u": 0.65,
+                "speed": 0.25,
+                "ease": "easeInOut"
+              },
+              {
+                "u": 1,
+                "speed": 3,
+                "ease": "linear"
+              }
+            ],
+            "fit": "stretch",
+            "frameBlend": true
+          }
+        },
+        {
+          "id": "clp_drop000003",
+          "type": "clip",
+          "assetId": "ast_8a7e5d4c3b2a1908",
+          "start": 32.8125,
+          "duration": 0.9375,
+          "sourceIn": 2.0,
+          "sourceOut": 2.9375,
+          "speed": 1,
+          "reverse": false,
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "scale": [
+              {
+                "t": 0,
+                "v": 1.0,
+                "ease": "easeOut"
+              },
+              {
+                "t": 0.9375,
+                "v": 1.2,
+                "ease": "linear"
+              }
+            ],
+            "rotation": 0,
+            "anchorX": 0,
+            "anchorY": 0
+          },
+          "opacity": 1,
+          "blendMode": "normal",
+          "effects": [],
+          "markers": []
+        }
+      ]
+    },
+    {
+      "id": "trk_fx00000001",
+      "kind": "fx",
+      "name": "FX",
+      "muted": false,
+      "locked": false,
+      "hidden": false,
+      "items": [
+        {
+          "id": "fx_grain00001",
+          "type": "effect",
+          "effect": "filmGrain",
+          "start": 0,
+          "duration": 96.0,
+          "params": {
+            "amount": 0.12,
+            "size": 1.5
+          },
+          "envelope": {
+            "attack": 0,
+            "hold": 96.0,
+            "decay": 0,
+            "curve": "linear"
+          },
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "trk_fx00000002",
+      "kind": "fx",
+      "name": "FX hits",
+      "muted": false,
+      "locked": false,
+      "hidden": false,
+      "items": [
+        {
+          "id": "fx_shake00001",
+          "type": "effect",
+          "effect": "shake",
+          "start": 31.875047,
+          "duration": 0.35,
+          "params": {
+            "strength": 1,
+            "amount": 40,
+            "frequency": 12,
+            "rotation": 3,
+            "motionBlur": true,
+            "samples": 8
+          },
+          "envelope": {
+            "attack": 0,
+            "hold": 0.05,
+            "decay": 0.3,
+            "curve": "exp"
+          },
+          "anchor": {
+            "markerId": "mrk_bass00028",
+            "clipId": "clp_music00001",
+            "offset": 0
+          },
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "trk_audio00001",
+      "kind": "audio",
+      "name": "Music",
+      "muted": false,
+      "locked": false,
+      "hidden": false,
+      "volume": 1,
+      "items": [
+        {
+          "id": "clp_music00001",
+          "type": "clip",
+          "assetId": "ast_c0ffee1234abcd56",
+          "start": 0.0,
+          "duration": 96.0,
+          "sourceIn": 0.0,
+          "sourceOut": 96.0,
+          "speed": 1,
+          "reverse": false,
+          "transform": {
+            "x": 0,
+            "y": 0,
+            "scale": 1,
+            "rotation": 0,
+            "anchorX": 0,
+            "anchorY": 0
+          },
+          "opacity": 1,
+          "blendMode": "normal",
+          "effects": [],
+          "markers": [
+            {
+              "id": "mrk_down00000",
+              "t": 0.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00000",
+              "t": 0.000942,
+              "kind": "bass",
+              "strength": 0.386
+            },
+            {
+              "id": "mrk_bass00001",
+              "t": 1.87407,
+              "kind": "bass",
+              "strength": 0.411
+            },
+            {
+              "id": "mrk_down00001",
+              "t": 1.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_down00002",
+              "t": 3.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00002",
+              "t": 3.75125,
+              "kind": "bass",
+              "strength": 0.424
+            },
+            {
+              "id": "mrk_down00003",
+              "t": 5.625,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00003",
+              "t": 5.626594,
+              "kind": "bass",
+              "strength": 0.367
+            },
+            {
+              "id": "mrk_down00004",
+              "t": 7.5,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00004",
+              "t": 7.50266,
+              "kind": "bass",
+              "strength": 0.392
+            },
+            {
+              "id": "mrk_down00005",
+              "t": 9.375,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00005",
+              "t": 9.376524,
+              "kind": "bass",
+              "strength": 0.424
+            },
+            {
+              "id": "mrk_down00006",
+              "t": 11.25,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00006",
+              "t": 11.250204,
+              "kind": "bass",
+              "strength": 0.394
+            },
+            {
+              "id": "mrk_down00007",
+              "t": 13.125,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00007",
+              "t": 13.125958,
+              "kind": "bass",
+              "strength": 0.4
+            },
+            {
+              "id": "mrk_down00008",
+              "t": 15.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00008",
+              "t": 15.003332,
+              "kind": "bass",
+              "strength": 0.65
+            },
+            {
+              "id": "mrk_bass00009",
+              "t": 15.939823,
+              "kind": "bass",
+              "strength": 0.415
+            },
+            {
+              "id": "mrk_bass00010",
+              "t": 16.872709,
+              "kind": "bass",
+              "strength": 0.667
+            },
+            {
+              "id": "mrk_down00009",
+              "t": 16.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00011",
+              "t": 17.812457,
+              "kind": "bass",
+              "strength": 0.434
+            },
+            {
+              "id": "mrk_down00010",
+              "t": 18.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00012",
+              "t": 18.752017,
+              "kind": "bass",
+              "strength": 0.643
+            },
+            {
+              "id": "mrk_bass00013",
+              "t": 19.684034,
+              "kind": "bass",
+              "strength": 0.373
+            },
+            {
+              "id": "mrk_down00011",
+              "t": 20.625,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00014",
+              "t": 20.628621,
+              "kind": "bass",
+              "strength": 0.653
+            },
+            {
+              "id": "mrk_bass00015",
+              "t": 21.565549,
+              "kind": "bass",
+              "strength": 0.453
+            },
+            {
+              "id": "mrk_bass00016",
+              "t": 22.498778,
+              "kind": "bass",
+              "strength": 0.577
+            },
+            {
+              "id": "mrk_down00012",
+              "t": 22.5,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00017",
+              "t": 23.435032,
+              "kind": "bass",
+              "strength": 0.408
+            },
+            {
+              "id": "mrk_down00013",
+              "t": 24.375,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00018",
+              "t": 24.377741,
+              "kind": "bass",
+              "strength": 0.609
+            },
+            {
+              "id": "mrk_bass00019",
+              "t": 25.309773,
+              "kind": "bass",
+              "strength": 0.407
+            },
+            {
+              "id": "mrk_down00014",
+              "t": 26.25,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00020",
+              "t": 26.25113,
+              "kind": "bass",
+              "strength": 0.601
+            },
+            {
+              "id": "mrk_bass00021",
+              "t": 27.185301,
+              "kind": "bass",
+              "strength": 0.391
+            },
+            {
+              "id": "mrk_down00015",
+              "t": 28.125,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00022",
+              "t": 28.127563,
+              "kind": "bass",
+              "strength": 0.646
+            },
+            {
+              "id": "mrk_bass00023",
+              "t": 29.06124,
+              "kind": "bass",
+              "strength": 0.444
+            },
+            {
+              "id": "mrk_bass00024",
+              "t": 29.997116,
+              "kind": "bass",
+              "strength": 0.988
+            },
+            {
+              "id": "mrk_down00016",
+              "t": 30.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00025",
+              "t": 30.469866,
+              "kind": "bass",
+              "strength": 0.581
+            },
+            {
+              "id": "mrk_bass00026",
+              "t": 30.939826,
+              "kind": "bass",
+              "strength": 0.591
+            },
+            {
+              "id": "mrk_bass00027",
+              "t": 31.40689,
+              "kind": "bass",
+              "strength": 0.58
+            },
+            {
+              "id": "mrk_down00017",
+              "t": 31.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00028",
+              "t": 31.875047,
+              "kind": "bass",
+              "strength": 0.962
+            },
+            {
+              "id": "mrk_bass00029",
+              "t": 32.34372,
+              "kind": "bass",
+              "strength": 0.572
+            },
+            {
+              "id": "mrk_bass00030",
+              "t": 32.815822,
+              "kind": "bass",
+              "strength": 0.635
+            },
+            {
+              "id": "mrk_bass00031",
+              "t": 33.283132,
+              "kind": "bass",
+              "strength": 0.572
+            },
+            {
+              "id": "mrk_down00018",
+              "t": 33.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00032",
+              "t": 33.752015,
+              "kind": "bass",
+              "strength": 0.967
+            },
+            {
+              "id": "mrk_bass00033",
+              "t": 34.218438,
+              "kind": "bass",
+              "strength": 0.651
+            },
+            {
+              "id": "mrk_bass00034",
+              "t": 34.6837,
+              "kind": "bass",
+              "strength": 0.613
+            },
+            {
+              "id": "mrk_bass00035",
+              "t": 35.153609,
+              "kind": "bass",
+              "strength": 0.642
+            },
+            {
+              "id": "mrk_down00019",
+              "t": 35.625,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00036",
+              "t": 35.627871,
+              "kind": "bass",
+              "strength": 0.918
+            },
+            {
+              "id": "mrk_bass00037",
+              "t": 36.09415,
+              "kind": "bass",
+              "strength": 0.661
+            },
+            {
+              "id": "mrk_bass00038",
+              "t": 36.565815,
+              "kind": "bass",
+              "strength": 0.576
+            },
+            {
+              "id": "mrk_bass00039",
+              "t": 37.029876,
+              "kind": "bass",
+              "strength": 0.625
+            },
+            {
+              "id": "mrk_bass00040",
+              "t": 37.49659,
+              "kind": "bass",
+              "strength": 0.987
+            },
+            {
+              "id": "mrk_down00020",
+              "t": 37.5,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00041",
+              "t": 37.969392,
+              "kind": "bass",
+              "strength": 0.573
+            },
+            {
+              "id": "mrk_bass00042",
+              "t": 38.441117,
+              "kind": "bass",
+              "strength": 0.576
+            },
+            {
+              "id": "mrk_bass00043",
+              "t": 38.907466,
+              "kind": "bass",
+              "strength": 0.61
+            },
+            {
+              "id": "mrk_bass00044",
+              "t": 39.373297,
+              "kind": "bass",
+              "strength": 0.971
+            },
+            {
+              "id": "mrk_down00021",
+              "t": 39.375,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00045",
+              "t": 39.842145,
+              "kind": "bass",
+              "strength": 0.607
+            },
+            {
+              "id": "mrk_bass00046",
+              "t": 40.314549,
+              "kind": "bass",
+              "strength": 0.576
+            },
+            {
+              "id": "mrk_bass00047",
+              "t": 40.783345,
+              "kind": "bass",
+              "strength": 0.65
+            },
+            {
+              "id": "mrk_bass00048",
+              "t": 41.24739,
+              "kind": "bass",
+              "strength": 0.952
+            },
+            {
+              "id": "mrk_down00022",
+              "t": 41.25,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00049",
+              "t": 41.715338,
+              "kind": "bass",
+              "strength": 0.589
+            },
+            {
+              "id": "mrk_bass00050",
+              "t": 42.189776,
+              "kind": "bass",
+              "strength": 0.586
+            },
+            {
+              "id": "mrk_bass00051",
+              "t": 42.652893,
+              "kind": "bass",
+              "strength": 0.592
+            },
+            {
+              "id": "mrk_down00023",
+              "t": 43.125,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00052",
+              "t": 43.128678,
+              "kind": "bass",
+              "strength": 0.955
+            },
+            {
+              "id": "mrk_bass00053",
+              "t": 43.597145,
+              "kind": "bass",
+              "strength": 0.602
+            },
+            {
+              "id": "mrk_bass00054",
+              "t": 44.062425,
+              "kind": "bass",
+              "strength": 0.653
+            },
+            {
+              "id": "mrk_bass00055",
+              "t": 44.531926,
+              "kind": "bass",
+              "strength": 0.603
+            },
+            {
+              "id": "mrk_down00024",
+              "t": 45.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00056",
+              "t": 45.000308,
+              "kind": "bass",
+              "strength": 0.972
+            },
+            {
+              "id": "mrk_bass00057",
+              "t": 45.467936,
+              "kind": "bass",
+              "strength": 0.574
+            },
+            {
+              "id": "mrk_bass00058",
+              "t": 45.933827,
+              "kind": "bass",
+              "strength": 0.631
+            },
+            {
+              "id": "mrk_bass00059",
+              "t": 46.410186,
+              "kind": "bass",
+              "strength": 0.63
+            },
+            {
+              "id": "mrk_down00025",
+              "t": 46.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00060",
+              "t": 46.878652,
+              "kind": "bass",
+              "strength": 0.911
+            },
+            {
+              "id": "mrk_bass00061",
+              "t": 47.345924,
+              "kind": "bass",
+              "strength": 0.645
+            },
+            {
+              "id": "mrk_bass00062",
+              "t": 47.810325,
+              "kind": "bass",
+              "strength": 0.632
+            },
+            {
+              "id": "mrk_bass00063",
+              "t": 48.283833,
+              "kind": "bass",
+              "strength": 0.609
+            },
+            {
+              "id": "mrk_bass00064",
+              "t": 48.747727,
+              "kind": "bass",
+              "strength": 0.985
+            },
+            {
+              "id": "mrk_down00026",
+              "t": 48.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00065",
+              "t": 49.219078,
+              "kind": "bass",
+              "strength": 0.579
+            },
+            {
+              "id": "mrk_bass00066",
+              "t": 49.68471,
+              "kind": "bass",
+              "strength": 0.581
+            },
+            {
+              "id": "mrk_bass00067",
+              "t": 50.157886,
+              "kind": "bass",
+              "strength": 0.586
+            },
+            {
+              "id": "mrk_bass00068",
+              "t": 50.622898,
+              "kind": "bass",
+              "strength": 0.938
+            },
+            {
+              "id": "mrk_down00027",
+              "t": 50.625,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00069",
+              "t": 51.095596,
+              "kind": "bass",
+              "strength": 0.612
+            },
+            {
+              "id": "mrk_bass00070",
+              "t": 51.564344,
+              "kind": "bass",
+              "strength": 0.61
+            },
+            {
+              "id": "mrk_bass00071",
+              "t": 52.03391,
+              "kind": "bass",
+              "strength": 0.641
+            },
+            {
+              "id": "mrk_down00028",
+              "t": 52.5,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00072",
+              "t": 52.501295,
+              "kind": "bass",
+              "strength": 0.908
+            },
+            {
+              "id": "mrk_bass00073",
+              "t": 52.969198,
+              "kind": "bass",
+              "strength": 0.599
+            },
+            {
+              "id": "mrk_bass00074",
+              "t": 53.435537,
+              "kind": "bass",
+              "strength": 0.602
+            },
+            {
+              "id": "mrk_bass00075",
+              "t": 53.906578,
+              "kind": "bass",
+              "strength": 0.629
+            },
+            {
+              "id": "mrk_bass00076",
+              "t": 54.373581,
+              "kind": "bass",
+              "strength": 0.986
+            },
+            {
+              "id": "mrk_down00029",
+              "t": 54.375,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00077",
+              "t": 54.846842,
+              "kind": "bass",
+              "strength": 0.634
+            },
+            {
+              "id": "mrk_bass00078",
+              "t": 55.311505,
+              "kind": "bass",
+              "strength": 0.622
+            },
+            {
+              "id": "mrk_bass00079",
+              "t": 55.778767,
+              "kind": "bass",
+              "strength": 0.639
+            },
+            {
+              "id": "mrk_down00030",
+              "t": 56.25,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00080",
+              "t": 56.252354,
+              "kind": "bass",
+              "strength": 0.951
+            },
+            {
+              "id": "mrk_bass00081",
+              "t": 56.718373,
+              "kind": "bass",
+              "strength": 0.642
+            },
+            {
+              "id": "mrk_bass00082",
+              "t": 57.186605,
+              "kind": "bass",
+              "strength": 0.578
+            },
+            {
+              "id": "mrk_bass00083",
+              "t": 57.656792,
+              "kind": "bass",
+              "strength": 0.641
+            },
+            {
+              "id": "mrk_bass00084",
+              "t": 58.122486,
+              "kind": "bass",
+              "strength": 0.937
+            },
+            {
+              "id": "mrk_down00031",
+              "t": 58.125,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00085",
+              "t": 58.59499,
+              "kind": "bass",
+              "strength": 0.62
+            },
+            {
+              "id": "mrk_bass00086",
+              "t": 59.063851,
+              "kind": "bass",
+              "strength": 0.625
+            },
+            {
+              "id": "mrk_bass00087",
+              "t": 59.530331,
+              "kind": "bass",
+              "strength": 0.609
+            },
+            {
+              "id": "mrk_bass00088",
+              "t": 59.996819,
+              "kind": "bass",
+              "strength": 0.378
+            },
+            {
+              "id": "mrk_down00032",
+              "t": 60.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_down00033",
+              "t": 61.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00089",
+              "t": 61.876882,
+              "kind": "bass",
+              "strength": 0.38
+            },
+            {
+              "id": "mrk_down00034",
+              "t": 63.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00090",
+              "t": 63.750923,
+              "kind": "bass",
+              "strength": 0.342
+            },
+            {
+              "id": "mrk_bass00091",
+              "t": 65.62338,
+              "kind": "bass",
+              "strength": 0.356
+            },
+            {
+              "id": "mrk_down00035",
+              "t": 65.625,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_down00036",
+              "t": 67.5,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00092",
+              "t": 67.50209,
+              "kind": "bass",
+              "strength": 0.356
+            },
+            {
+              "id": "mrk_bass00093",
+              "t": 69.374497,
+              "kind": "bass",
+              "strength": 0.325
+            },
+            {
+              "id": "mrk_down00037",
+              "t": 69.375,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_down00038",
+              "t": 71.25,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00094",
+              "t": 71.250141,
+              "kind": "bass",
+              "strength": 0.325
+            },
+            {
+              "id": "mrk_bass00095",
+              "t": 73.121013,
+              "kind": "bass",
+              "strength": 0.349
+            },
+            {
+              "id": "mrk_down00039",
+              "t": 73.125,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00096",
+              "t": 74.999819,
+              "kind": "bass",
+              "strength": 0.961
+            },
+            {
+              "id": "mrk_down00040",
+              "t": 75.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00097",
+              "t": 75.466609,
+              "kind": "bass",
+              "strength": 0.662
+            },
+            {
+              "id": "mrk_bass00098",
+              "t": 75.937008,
+              "kind": "bass",
+              "strength": 0.652
+            },
+            {
+              "id": "mrk_bass00099",
+              "t": 76.404765,
+              "kind": "bass",
+              "strength": 0.646
+            },
+            {
+              "id": "mrk_down00041",
+              "t": 76.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00100",
+              "t": 76.877689,
+              "kind": "bass",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00101",
+              "t": 77.344843,
+              "kind": "bass",
+              "strength": 0.654
+            },
+            {
+              "id": "mrk_bass00102",
+              "t": 77.810708,
+              "kind": "bass",
+              "strength": 0.658
+            },
+            {
+              "id": "mrk_bass00103",
+              "t": 78.279715,
+              "kind": "bass",
+              "strength": 0.64
+            },
+            {
+              "id": "mrk_down00042",
+              "t": 78.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00104",
+              "t": 78.750218,
+              "kind": "bass",
+              "strength": 0.993
+            },
+            {
+              "id": "mrk_bass00105",
+              "t": 79.222678,
+              "kind": "bass",
+              "strength": 0.662
+            },
+            {
+              "id": "mrk_bass00106",
+              "t": 79.689685,
+              "kind": "bass",
+              "strength": 0.694
+            },
+            {
+              "id": "mrk_bass00107",
+              "t": 80.157271,
+              "kind": "bass",
+              "strength": 0.691
+            },
+            {
+              "id": "mrk_bass00108",
+              "t": 80.623494,
+              "kind": "bass",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_down00043",
+              "t": 80.625,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00109",
+              "t": 81.095273,
+              "kind": "bass",
+              "strength": 0.69
+            },
+            {
+              "id": "mrk_bass00110",
+              "t": 81.56317,
+              "kind": "bass",
+              "strength": 0.641
+            },
+            {
+              "id": "mrk_bass00111",
+              "t": 82.034223,
+              "kind": "bass",
+              "strength": 0.695
+            },
+            {
+              "id": "mrk_down00044",
+              "t": 82.5,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00112",
+              "t": 82.501438,
+              "kind": "bass",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00113",
+              "t": 82.971474,
+              "kind": "bass",
+              "strength": 0.652
+            },
+            {
+              "id": "mrk_bass00114",
+              "t": 83.437633,
+              "kind": "bass",
+              "strength": 0.683
+            },
+            {
+              "id": "mrk_bass00115",
+              "t": 83.906555,
+              "kind": "bass",
+              "strength": 0.698
+            },
+            {
+              "id": "mrk_down00045",
+              "t": 84.375,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00116",
+              "t": 84.378856,
+              "kind": "bass",
+              "strength": 0.976
+            },
+            {
+              "id": "mrk_bass00117",
+              "t": 84.847349,
+              "kind": "bass",
+              "strength": 0.603
+            },
+            {
+              "id": "mrk_bass00118",
+              "t": 85.310745,
+              "kind": "bass",
+              "strength": 0.628
+            },
+            {
+              "id": "mrk_bass00119",
+              "t": 85.778445,
+              "kind": "bass",
+              "strength": 0.688
+            },
+            {
+              "id": "mrk_down00046",
+              "t": 86.25,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00120",
+              "t": 86.25177,
+              "kind": "bass",
+              "strength": 0.977
+            },
+            {
+              "id": "mrk_bass00121",
+              "t": 86.722466,
+              "kind": "bass",
+              "strength": 0.641
+            },
+            {
+              "id": "mrk_bass00122",
+              "t": 87.19065,
+              "kind": "bass",
+              "strength": 0.687
+            },
+            {
+              "id": "mrk_bass00123",
+              "t": 87.659223,
+              "kind": "bass",
+              "strength": 0.626
+            },
+            {
+              "id": "mrk_down00047",
+              "t": 88.125,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00124",
+              "t": 88.125967,
+              "kind": "bass",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00125",
+              "t": 88.591209,
+              "kind": "bass",
+              "strength": 0.651
+            },
+            {
+              "id": "mrk_bass00126",
+              "t": 89.065311,
+              "kind": "bass",
+              "strength": 0.699
+            },
+            {
+              "id": "mrk_bass00127",
+              "t": 89.529496,
+              "kind": "bass",
+              "strength": 0.668
+            },
+            {
+              "id": "mrk_bass00128",
+              "t": 89.998295,
+              "kind": "bass",
+              "strength": 0.316
+            },
+            {
+              "id": "mrk_down00048",
+              "t": 90.0,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_down00049",
+              "t": 91.875,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00129",
+              "t": 91.875379,
+              "kind": "bass",
+              "strength": 0.252
+            },
+            {
+              "id": "mrk_down00050",
+              "t": 93.75,
+              "kind": "downbeat",
+              "strength": 1.0
+            },
+            {
+              "id": "mrk_bass00130",
+              "t": 93.752384,
+              "kind": "bass",
+              "strength": 0.275
+            }
+          ],
+          "volume": 1
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "id": "mrk_manual0001",
+      "t": 30.0,
+      "kind": "manual",
+      "strength": 1,
+      "label": "DROP",
+      "color": "#ffcc00"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sec_0000000000",
+      "start": 0.0,
+      "end": 15.0,
+      "label": "intro",
+      "energy": 0.35
+    },
+    {
+      "id": "sec_0000000001",
+      "start": 15.0,
+      "end": 30.0,
+      "label": "build",
+      "energy": 0.6
+    },
+    {
+      "id": "sec_0000000002",
+      "start": 30.0,
+      "end": 60.0,
+      "label": "drop",
+      "energy": 0.95
+    },
+    {
+      "id": "sec_0000000003",
+      "start": 60.0,
+      "end": 75.0,
+      "label": "break",
+      "energy": 0.3
+    },
+    {
+      "id": "sec_0000000004",
+      "start": 75.0,
+      "end": 90.0,
+      "label": "drop",
+      "energy": 1.0
+    },
+    {
+      "id": "sec_0000000005",
+      "start": 90.0,
+      "end": 96.0,
+      "label": "outro",
+      "energy": 0.25
+    }
+  ],
+  "createdAt": "2026-10-05T12:00:00Z",
+  "updatedAt": "2026-10-05T12:00:00Z",
+  "revision": 3
+}

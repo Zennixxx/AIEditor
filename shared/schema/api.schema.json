@@ -1,0 +1,987 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "api.schema.json",
+  "title": "AIEditorApiSchema",
+  "description": "Запросы/ответы HTTP и WS, анализ, edit-ops, реестр эффектов, стили. См. docs/CONTRACT.md §3–8. Ссылки на модель проекта — project.schema.json.",
+  "definitions": {
+    "ApiErrorBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    },
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": { "error": { "$ref": "#/definitions/ApiErrorBody" } }
+    },
+    "Health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "version", "schemaVersion", "ffmpeg", "rife", "demucs", "gemini"],
+      "properties": {
+        "status": { "const": "ok" },
+        "version": { "type": "string" },
+        "schemaVersion": { "type": "integer" },
+        "ffmpeg": { "type": "boolean" },
+        "rife": { "type": "boolean" },
+        "demucs": { "type": "boolean" },
+        "gemini": { "type": "boolean" }
+      }
+    },
+
+    "Thumbs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interval", "tileWidth", "tileHeight", "columns", "count", "sprites"],
+      "properties": {
+        "interval": { "type": "number" },
+        "tileWidth": { "type": "integer" },
+        "tileHeight": { "type": "integer" },
+        "columns": { "type": "integer" },
+        "count": { "type": "integer" },
+        "sprites": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Waveform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleRate", "samplesPerPeak", "channels", "peaks"],
+      "properties": {
+        "sampleRate": { "type": "integer" },
+        "samplesPerPeak": { "type": "integer" },
+        "channels": { "const": 1 },
+        "peaks": {
+          "description": "Пары [min, max, min, max, …], int8 −128..127.",
+          "type": "array",
+          "items": { "type": "integer", "minimum": -128, "maximum": 127 }
+        }
+      }
+    },
+
+    "TimedStrength": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t", "strength"],
+      "properties": {
+        "t": { "type": "number" },
+        "strength": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "SectionSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "label", "energy"],
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "label": { "$ref": "project.schema.json#/definitions/SectionLabel" },
+        "energy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "description": { "type": "string" }
+      }
+    },
+    "Curve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interval", "values"],
+      "properties": {
+        "interval": { "type": "number", "description": "Шаг между значениями, сек." },
+        "values": { "type": "array", "items": { "type": "number" } }
+      }
+    },
+    "MusicAnalysisParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bassCutoffHz", "sensitivity", "minGapSec", "useStems"],
+      "properties": {
+        "bassCutoffHz": { "type": "number", "minimum": 20, "maximum": 1000, "default": 150 },
+        "sensitivity": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 },
+        "minGapSec": { "type": "number", "minimum": 0.01, "maximum": 2, "default": 0.12 },
+        "useStems": { "type": "boolean", "default": false }
+      }
+    },
+    "MusicAnalysisParamsInput": {
+      "description": "Частичные параметры для POST /analysis/music/{id}; недостающие берутся по умолчанию.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bassCutoffHz": { "type": "number", "minimum": 20, "maximum": 1000 },
+        "sensitivity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "minGapSec": { "type": "number", "minimum": 0.01, "maximum": 2 },
+        "useStems": { "type": "boolean" }
+      }
+    },
+    "Stems": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "drums": { "type": "string" },
+        "bass": { "type": "string" },
+        "other": { "type": "string" },
+        "vocals": { "type": "string" }
+      }
+    },
+    "MusicAnalysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "params", "bpm", "beats", "downbeats", "bass", "onsets", "sections", "energy"],
+      "properties": {
+        "assetId": { "type": "string" },
+        "params": { "$ref": "#/definitions/MusicAnalysisParams" },
+        "bpm": { "type": "number" },
+        "beats": { "type": "array", "items": { "type": "number" } },
+        "downbeats": { "type": "array", "items": { "type": "number" } },
+        "bass": { "type": "array", "items": { "$ref": "#/definitions/TimedStrength" } },
+        "onsets": { "type": "array", "items": { "$ref": "#/definitions/TimedStrength" } },
+        "sections": { "type": "array", "items": { "$ref": "#/definitions/SectionSpan" } },
+        "energy": { "$ref": "#/definitions/Curve" },
+        "stems": { "$ref": "#/definitions/Stems" }
+      }
+    },
+    "Moment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "score", "tags", "description"],
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" }
+      }
+    },
+    "ShotType": {
+      "type": "string",
+      "enum": ["closeup", "medium", "wide", "other"]
+    },
+    "Shot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "type"],
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "type": { "$ref": "#/definitions/ShotType" }
+      }
+    },
+    "ClipAnalysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "model", "summary", "moments", "shots", "motion"],
+      "properties": {
+        "assetId": { "type": "string" },
+        "model": { "type": "string", "description": "Модель Gemini; пустая строка, если анализ только локальный." },
+        "summary": { "type": "string" },
+        "moments": { "type": "array", "items": { "$ref": "#/definitions/Moment" } },
+        "shots": { "type": "array", "items": { "$ref": "#/definitions/Shot" } },
+        "motion": { "$ref": "#/definitions/Curve" }
+      }
+    },
+
+    "ImportRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paths"],
+      "properties": { "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
+    },
+    "ImportResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assets", "jobs"],
+      "properties": {
+        "assets": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/Asset" } },
+        "jobs": { "type": "array", "items": { "$ref": "#/definitions/JobRef" } }
+      }
+    },
+    "InterpolateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceIn", "sourceOut", "factor"],
+      "properties": {
+        "sourceIn": { "type": "number", "minimum": 0 },
+        "sourceOut": { "type": "number", "exclusiveMinimum": 0 },
+        "factor": { "type": "integer", "enum": [2, 4, 8, 16] }
+      }
+    },
+    "AnalyzeClipRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "force": { "type": "boolean" } }
+    },
+
+    "ProjectListItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "updatedAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "CreateProjectRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "fps", "width", "height"],
+      "properties": {
+        "name": { "type": "string" },
+        "fps": { "type": "number", "enum": [24, 25, 30, 50, 60] },
+        "width": { "type": "integer", "minimum": 16 },
+        "height": { "type": "integer", "minimum": 16 }
+      }
+    },
+    "PresetEffect": {
+      "description": "Эффект внутри пресета: start — относительно точки применения.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effect", "start", "duration", "params", "envelope"],
+      "properties": {
+        "effect": { "type": "string" },
+        "start": { "type": "number" },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "params": { "$ref": "project.schema.json#/definitions/EffectParams" },
+        "envelope": { "$ref": "project.schema.json#/definitions/Envelope" }
+      }
+    },
+    "EffectPreset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "effects"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "effects": { "type": "array", "items": { "$ref": "#/definitions/PresetEffect" }, "minItems": 1 }
+      }
+    },
+
+    "JobKind": {
+      "type": "string",
+      "enum": [
+        "import", "proxy", "thumbs", "waveform", "mezzanine", "musicAnalysis", "stems",
+        "interpolate", "clipAnalysis", "aiMusic", "autoEdit", "styleRef", "debug"
+      ]
+    },
+    "JobStatus": {
+      "type": "string",
+      "enum": ["queued", "running", "done", "failed", "canceled"]
+    },
+    "JobRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jobId"],
+      "properties": { "jobId": { "type": "string" } }
+    },
+    "Job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "status", "progress", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^job_" },
+        "kind": { "$ref": "#/definitions/JobKind" },
+        "assetId": { "type": "string" },
+        "status": { "$ref": "#/definitions/JobStatus" },
+        "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+        "message": { "type": "string" },
+        "result": { "description": "Тип зависит от kind (CONTRACT §8).", "tsType": "unknown" },
+        "error": { "$ref": "#/definitions/ApiErrorBody" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "WsHello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "version", "schemaVersion"],
+      "properties": {
+        "type": { "const": "hello" },
+        "version": { "type": "string" },
+        "schemaVersion": { "type": "integer" }
+      }
+    },
+    "WsJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "job"],
+      "properties": {
+        "type": { "const": "job" },
+        "job": { "$ref": "#/definitions/Job" }
+      }
+    },
+    "WsAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "asset"],
+      "properties": {
+        "type": { "const": "asset" },
+        "asset": { "$ref": "project.schema.json#/definitions/Asset" }
+      }
+    },
+    "WsEvent": {
+      "oneOf": [
+        { "$ref": "#/definitions/WsHello" },
+        { "$ref": "#/definitions/WsJob" },
+        { "$ref": "#/definitions/WsAsset" }
+      ]
+    },
+
+    "TimeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" }
+      }
+    },
+    "MarkerFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "musicClipId": { "type": "string", "description": "Чьи маркеры; по умолчанию — первый аудиоклип." },
+        "kinds": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/MarkerKind" } },
+        "minStrength": { "type": "number", "minimum": 0, "maximum": 1 },
+        "every": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 },
+        "sectionLabels": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/SectionLabel" } },
+        "range": { "$ref": "#/definitions/TimeRange" }
+      }
+    },
+    "ClipRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clipId"],
+      "properties": { "clipId": { "type": "string" } }
+    },
+    "TrackRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trackId"],
+      "properties": { "trackId": { "type": "string" } }
+    },
+
+    "TrackInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "muted", "locked", "hidden"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "$ref": "project.schema.json#/definitions/TrackKind" },
+        "name": { "type": "string" },
+        "muted": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "volume": { "type": "number", "minimum": 0, "maximum": 2 }
+      }
+    },
+    "ClipInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type", "assetId", "start", "duration", "sourceIn", "sourceOut", "speed", "reverse",
+        "transform", "opacity", "blendMode", "effects", "markers"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "clip" },
+        "assetId": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "sourceIn": { "type": "number", "minimum": 0 },
+        "sourceOut": { "type": "number", "exclusiveMinimum": 0 },
+        "speed": { "type": "number", "exclusiveMinimum": 0 },
+        "reverse": { "type": "boolean" },
+        "timeRemap": { "$ref": "project.schema.json#/definitions/TimeRemap" },
+        "transform": { "$ref": "project.schema.json#/definitions/Transform" },
+        "opacity": { "$ref": "project.schema.json#/definitions/Animatable" },
+        "blendMode": { "$ref": "project.schema.json#/definitions/BlendMode" },
+        "volume": { "$ref": "project.schema.json#/definitions/Animatable" },
+        "effects": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/EffectItem" } },
+        "markers": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/Marker" } },
+        "interpolatedAssetId": { "type": "string" },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "ClipPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assetId": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "sourceIn": { "type": "number", "minimum": 0 },
+        "sourceOut": { "type": "number", "exclusiveMinimum": 0 },
+        "speed": { "type": "number", "exclusiveMinimum": 0 },
+        "reverse": { "type": "boolean" },
+        "transform": { "$ref": "project.schema.json#/definitions/Transform" },
+        "opacity": { "$ref": "project.schema.json#/definitions/Animatable" },
+        "blendMode": { "$ref": "project.schema.json#/definitions/BlendMode" },
+        "volume": { "$ref": "project.schema.json#/definitions/Animatable" },
+        "interpolatedAssetId": { "type": "string" },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "MarkerInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t", "kind", "strength"],
+      "properties": {
+        "id": { "type": "string" },
+        "t": { "type": "number" },
+        "kind": { "$ref": "project.schema.json#/definitions/MarkerKind" },
+        "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "MarkerPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "t": { "type": "number" },
+        "kind": { "$ref": "project.schema.json#/definitions/MarkerKind" },
+        "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "EffectInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effect", "start", "duration", "params", "envelope", "enabled"],
+      "properties": {
+        "id": { "type": "string" },
+        "effect": { "type": "string" },
+        "start": { "type": "number" },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "params": { "$ref": "project.schema.json#/definitions/EffectParams" },
+        "envelope": { "$ref": "project.schema.json#/definitions/Envelope" },
+        "anchor": { "$ref": "project.schema.json#/definitions/EffectAnchor" },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "EffectPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "effect": { "type": "string" },
+        "start": { "type": "number" },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "params": { "$ref": "project.schema.json#/definitions/EffectParams" },
+        "envelope": { "$ref": "project.schema.json#/definitions/Envelope" },
+        "anchor": { "$ref": "project.schema.json#/definitions/EffectAnchor" },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "EnvelopePatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack": { "type": "number", "minimum": 0 },
+        "hold": { "type": "number", "minimum": 0 },
+        "decay": { "type": "number", "minimum": 0 },
+        "curve": { "$ref": "project.schema.json#/definitions/EnvelopeCurve" }
+      }
+    },
+
+    "OpAddTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "track"],
+      "properties": {
+        "op": { "const": "addTrack" },
+        "track": { "$ref": "#/definitions/TrackInput" },
+        "index": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "OpRemoveTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "trackId"],
+      "properties": {
+        "op": { "const": "removeTrack" },
+        "trackId": { "type": "string" }
+      }
+    },
+    "OpAddClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "trackId", "clip"],
+      "properties": {
+        "op": { "const": "addClip" },
+        "trackId": { "type": "string" },
+        "clip": { "$ref": "#/definitions/ClipInput" }
+      }
+    },
+    "OpUpdateClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipId", "patch"],
+      "properties": {
+        "op": { "const": "updateClip" },
+        "clipId": { "type": "string" },
+        "patch": { "$ref": "#/definitions/ClipPatch" }
+      }
+    },
+    "OpMoveClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipId", "start"],
+      "properties": {
+        "op": { "const": "moveClip" },
+        "clipId": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "trackId": { "type": "string" }
+      }
+    },
+    "OpSplitClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipId", "at"],
+      "properties": {
+        "op": { "const": "splitClip" },
+        "clipId": { "type": "string" },
+        "at": { "type": "number", "description": "Timeline time." }
+      }
+    },
+    "OpRemoveClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipId"],
+      "properties": {
+        "op": { "const": "removeClip" },
+        "clipId": { "type": "string" },
+        "ripple": { "type": "boolean" }
+      }
+    },
+    "OpSetTimeRemap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipId", "timeRemap"],
+      "properties": {
+        "op": { "const": "setTimeRemap" },
+        "clipId": { "type": "string" },
+        "timeRemap": {
+          "oneOf": [{ "$ref": "project.schema.json#/definitions/TimeRemap" }, { "type": "null" }]
+        }
+      }
+    },
+    "OpAddMarkers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "markers"],
+      "properties": {
+        "op": { "const": "addMarkers" },
+        "target": { "oneOf": [{ "$ref": "#/definitions/ClipRef" }, { "const": "project" }] },
+        "markers": { "type": "array", "items": { "$ref": "#/definitions/MarkerInput" }, "minItems": 1 }
+      }
+    },
+    "OpUpdateMarker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "markerId", "patch"],
+      "properties": {
+        "op": { "const": "updateMarker" },
+        "markerId": { "type": "string" },
+        "patch": { "$ref": "#/definitions/MarkerPatch" }
+      }
+    },
+    "OpRemoveMarkers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "markerIds"],
+      "properties": {
+        "op": { "const": "removeMarkers" },
+        "markerIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "OpAddEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "effect"],
+      "properties": {
+        "op": { "const": "addEffect" },
+        "target": { "oneOf": [{ "$ref": "#/definitions/TrackRef" }, { "$ref": "#/definitions/ClipRef" }] },
+        "effect": { "$ref": "#/definitions/EffectInput" }
+      }
+    },
+    "OpUpdateEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "effectId", "patch"],
+      "properties": {
+        "op": { "const": "updateEffect" },
+        "effectId": { "type": "string" },
+        "patch": { "$ref": "#/definitions/EffectPatch" }
+      }
+    },
+    "OpRemoveEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "effectId"],
+      "properties": {
+        "op": { "const": "removeEffect" },
+        "effectId": { "type": "string" }
+      }
+    },
+    "OpApplyEffectToMarkers": {
+      "description": "Макро: раскрывается фронтом детерминированно в addEffect.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "effect", "filter", "target"],
+      "properties": {
+        "op": { "const": "applyEffectToMarkers" },
+        "effect": { "type": "string" },
+        "params": { "$ref": "project.schema.json#/definitions/EffectParams" },
+        "envelope": { "$ref": "#/definitions/EnvelopePatch" },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "scaleByStrength": { "type": "boolean", "description": "Сильнее на сильных маркерах." },
+        "filter": { "$ref": "#/definitions/MarkerFilter" },
+        "target": {
+          "oneOf": [
+            { "$ref": "#/definitions/TrackRef" },
+            { "type": "string", "enum": ["newFxTrack", "clipsUnderMarker"] }
+          ]
+        }
+      }
+    },
+    "CutOrder": {
+      "type": "string",
+      "enum": ["sequential", "random", "bestMoments"]
+    },
+    "OpCutToMarkers": {
+      "description": "Макро: раскладывает клипы по слотам между маркерами.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipIds", "filter", "order"],
+      "properties": {
+        "op": { "const": "cutToMarkers" },
+        "clipIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "filter": { "$ref": "#/definitions/MarkerFilter" },
+        "trackId": { "type": "string" },
+        "order": { "$ref": "#/definitions/CutOrder" },
+        "seed": { "type": "integer", "description": "Для order=random — детерминированность." }
+      }
+    },
+    "OpSnapClipEdgesToMarkers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "clipIds", "filter", "maxShift"],
+      "properties": {
+        "op": { "const": "snapClipEdgesToMarkers" },
+        "clipIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "filter": { "$ref": "#/definitions/MarkerFilter" },
+        "maxShift": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "EditOp": {
+      "oneOf": [
+        { "$ref": "#/definitions/OpAddTrack" },
+        { "$ref": "#/definitions/OpRemoveTrack" },
+        { "$ref": "#/definitions/OpAddClip" },
+        { "$ref": "#/definitions/OpUpdateClip" },
+        { "$ref": "#/definitions/OpMoveClip" },
+        { "$ref": "#/definitions/OpSplitClip" },
+        { "$ref": "#/definitions/OpRemoveClip" },
+        { "$ref": "#/definitions/OpSetTimeRemap" },
+        { "$ref": "#/definitions/OpAddMarkers" },
+        { "$ref": "#/definitions/OpUpdateMarker" },
+        { "$ref": "#/definitions/OpRemoveMarkers" },
+        { "$ref": "#/definitions/OpAddEffect" },
+        { "$ref": "#/definitions/OpUpdateEffect" },
+        { "$ref": "#/definitions/OpRemoveEffect" },
+        { "$ref": "#/definitions/OpApplyEffectToMarkers" },
+        { "$ref": "#/definitions/OpCutToMarkers" },
+        { "$ref": "#/definitions/OpSnapClipEdgesToMarkers" }
+      ]
+    },
+    "OpsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ops", "explanation"],
+      "properties": {
+        "ops": { "type": "array", "items": { "$ref": "#/definitions/EditOp" } },
+        "explanation": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "Selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clipIds", "markerIds", "effectIds"],
+      "properties": {
+        "clipIds": { "type": "array", "items": { "type": "string" } },
+        "markerIds": { "type": "array", "items": { "type": "string" } },
+        "effectIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ChatTurn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "text"],
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "text": { "type": "string" }
+      }
+    },
+    "AICommandRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "selection", "playhead", "message"],
+      "properties": {
+        "project": { "$ref": "project.schema.json#/definitions/Project" },
+        "selection": { "$ref": "#/definitions/Selection" },
+        "playhead": { "type": "number", "minimum": 0 },
+        "message": { "type": "string", "minLength": 1 },
+        "history": { "type": "array", "items": { "$ref": "#/definitions/ChatTurn" }, "maxItems": 10 }
+      }
+    },
+    "AutoEditRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "musicClipId", "assetIds", "style", "intensity"],
+      "properties": {
+        "project": { "$ref": "project.schema.json#/definitions/Project" },
+        "musicClipId": { "type": "string" },
+        "assetIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "style": { "type": "string", "description": "id из shared/styles.json или \"custom\"." },
+        "customStyle": { "$ref": "#/definitions/StylePreset" },
+        "range": { "$ref": "#/definitions/TimeRange" },
+        "intensity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+
+    "CutDensity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kinds", "every", "minStrength"],
+      "properties": {
+        "kinds": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/MarkerKind" }, "minItems": 1 },
+        "every": { "type": "integer", "minimum": 1 },
+        "minStrength": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "CutDensityMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intro", "verse", "build", "drop", "break", "outro", "other"],
+      "properties": {
+        "intro": { "$ref": "#/definitions/CutDensity" },
+        "verse": { "$ref": "#/definitions/CutDensity" },
+        "build": { "$ref": "#/definitions/CutDensity" },
+        "drop": { "$ref": "#/definitions/CutDensity" },
+        "break": { "$ref": "#/definitions/CutDensity" },
+        "outro": { "$ref": "#/definitions/CutDensity" },
+        "other": { "$ref": "#/definitions/CutDensity" }
+      }
+    },
+    "StyleEffectRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effect", "params", "filter", "probability"],
+      "properties": {
+        "effect": { "type": "string" },
+        "params": { "$ref": "project.schema.json#/definitions/EffectParams" },
+        "filter": { "$ref": "#/definitions/MarkerFilter" },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "StyleGlobalEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effect", "params"],
+      "properties": {
+        "effect": { "type": "string" },
+        "params": { "$ref": "project.schema.json#/definitions/EffectParams" }
+      }
+    },
+    "StyleRampRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preset", "where", "probability"],
+      "properties": {
+        "preset": { "type": "string", "description": "id из shared/fixtures/ramp_presets.json" },
+        "where": { "type": "string", "enum": ["drop-entry", "section-end", "random"] },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "StyleTransitionRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effect", "at", "probability"],
+      "properties": {
+        "effect": { "type": "string" },
+        "at": { "type": "string", "enum": ["section-boundary", "downbeat"] },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "StylePreset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "cutDensity", "effects", "ramps", "transitions"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "cutDensity": { "$ref": "#/definitions/CutDensityMap" },
+        "effects": { "type": "array", "items": { "$ref": "#/definitions/StyleEffectRule" } },
+        "globalEffects": {
+          "description": "Эффекты на весь диапазон эдита (зерно, леттербокс, виньетка) — кладутся на fx-дорожку одним элементом.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/StyleGlobalEffect" }
+        },
+        "ramps":{ "type": "array", "items": { "$ref": "#/definitions/StyleRampRule" } },
+        "transitions": { "type": "array", "items": { "$ref": "#/definitions/StyleTransitionRule" } },
+        "notes": { "type": "string" }
+      }
+    },
+    "StylesFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "styles"],
+      "properties": {
+        "version": { "type": "integer" },
+        "styles": { "type": "array", "items": { "$ref": "#/definitions/StylePreset" } }
+      }
+    },
+
+    "RampPreset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "description", "timeRemap"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "timeRemap": { "$ref": "project.schema.json#/definitions/TimeRemap" }
+      }
+    },
+    "RampPresetsFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "presets"],
+      "properties": {
+        "version": { "type": "integer" },
+        "presets": { "type": "array", "items": { "$ref": "#/definitions/RampPreset" } }
+      }
+    },
+
+    "EffectCategory": {
+      "type": "string",
+      "enum": ["camera", "light", "color", "distort", "stylize", "transition"]
+    },
+    "EffectParamType": {
+      "type": "string",
+      "enum": ["number", "boolean", "color", "enum"]
+    },
+    "EffectParamDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "type", "default"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "type": { "$ref": "#/definitions/EffectParamType" },
+        "default": { "type": ["number", "string", "boolean"] },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number" },
+        "unit": { "type": "string", "enum": ["px", "deg", "x", "Hz", "s", "%"] },
+        "options": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "EffectDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "category", "defaultDuration", "defaultEnvelope", "params", "aiHint"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
+        "name": { "type": "string" },
+        "category": { "$ref": "#/definitions/EffectCategory" },
+        "defaultDuration": { "type": "number", "exclusiveMinimum": 0 },
+        "defaultEnvelope": { "$ref": "project.schema.json#/definitions/Envelope" },
+        "params": { "type": "array", "items": { "$ref": "#/definitions/EffectParamDef" } },
+        "aiHint": { "type": "string" }
+      }
+    },
+    "EffectsRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "effects"],
+      "properties": {
+        "version": { "type": "integer" },
+        "effects": { "type": "array", "items": { "$ref": "#/definitions/EffectDef" } }
+      }
+    },
+
+    "AiCommandFixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "message", "expectedOps"],
+      "properties": {
+        "id": { "type": "string" },
+        "message": { "type": "string" },
+        "selection": { "$ref": "#/definitions/Selection" },
+        "playhead": { "type": "number" },
+        "expectedOps": {
+          "description": "Типы ops, которые должны присутствовать в ответе (порядок не важен).",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "AiCommandsFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "projectFixture", "commands"],
+      "properties": {
+        "version": { "type": "integer" },
+        "projectFixture": { "type": "string" },
+        "commands": { "type": "array", "items": { "$ref": "#/definitions/AiCommandFixture" } }
+      }
+    },
+
+    "TimeRemapVectorSample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tau", "src"],
+      "properties": {
+        "tau": { "type": "number" },
+        "src": { "type": "number" }
+      }
+    },
+    "TimeRemapVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "remap", "D", "sourceIn", "sourceOut", "reverse", "samples"],
+      "properties": {
+        "name": { "type": "string" },
+        "remap": { "$ref": "project.schema.json#/definitions/TimeRemap" },
+        "D": { "type": "number" },
+        "sourceIn": { "type": "number" },
+        "sourceOut": { "type": "number", "description": "Для fit=free — ожидаемое вычисленное значение." },
+        "reverse": { "type": "boolean" },
+        "samples": { "type": "array", "items": { "$ref": "#/definitions/TimeRemapVectorSample" } }
+      }
+    },
+    "TimeRemapVectorsFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "tolerance", "vectors"],
+      "properties": {
+        "version": { "type": "integer" },
+        "tolerance": { "type": "number" },
+        "vectors": { "type": "array", "items": { "$ref": "#/definitions/TimeRemapVector" } }
+      }
+    }
+  }
+}

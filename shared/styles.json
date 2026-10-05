@@ -1,0 +1,670 @@
+{
+  "version": 1,
+  "styles": [
+    {
+      "id": "phonk",
+      "name": "Phonk-эдит",
+      "description": "Агрессивные склейки на каждый бас в дропе, шейк + RGB-сдвиг, вспышки, глитч-переходы.",
+      "cutDensity": {
+        "intro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "verse": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "build": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "drop": {
+          "kinds": [
+            "bass"
+          ],
+          "every": 1,
+          "minStrength": 0.35
+        },
+        "break": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "outro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "other": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        }
+      },
+      "effects": [
+        {
+          "effect": "shake",
+          "params": {
+            "amount": 50
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.5,
+            "sectionLabels": [
+              "drop"
+            ]
+          },
+          "probability": 1
+        },
+        {
+          "effect": "rgbSplit",
+          "params": {
+            "amount": 14
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.5,
+            "sectionLabels": [
+              "drop"
+            ]
+          },
+          "probability": 0.8
+        },
+        {
+          "effect": "flash",
+          "params": {
+            "opacity": 0.6
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.85
+          },
+          "probability": 0.5
+        },
+        {
+          "effect": "flicker",
+          "params": {
+            "rate": 18
+          },
+          "filter": {
+            "kinds": [
+              "beat"
+            ],
+            "sectionLabels": [
+              "build"
+            ],
+            "every": 2
+          },
+          "probability": 0.6
+        }
+      ],
+      "globalEffects": [
+        {
+          "effect": "filmGrain",
+          "params": {
+            "amount": 0.12
+          }
+        }
+      ],
+      "ramps": [
+        {
+          "preset": "ramp-to-drop",
+          "where": "drop-entry",
+          "probability": 0.8
+        },
+        {
+          "preset": "fast-slow-fast",
+          "where": "random",
+          "probability": 0.15
+        }
+      ],
+      "transitions": [
+        {
+          "effect": "glitchTransition",
+          "at": "section-boundary",
+          "probability": 0.7
+        },
+        {
+          "effect": "flashTransition",
+          "at": "downbeat",
+          "probability": 0.1
+        }
+      ]
+    },
+    {
+      "id": "amv",
+      "name": "Аниме AMV",
+      "description": "Склейки по битам, зум-панчи, velocity на длинных планах, свечение в спокойных частях.",
+      "cutDensity": {
+        "intro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "verse": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "build": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "drop": {
+          "kinds": [
+            "bass",
+            "beat"
+          ],
+          "every": 1,
+          "minStrength": 0.3
+        },
+        "break": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "outro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "other": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        }
+      },
+      "effects": [
+        {
+          "effect": "zoomPunch",
+          "params": {
+            "amount": 1.12
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.45,
+            "sectionLabels": [
+              "drop"
+            ]
+          },
+          "probability": 1
+        },
+        {
+          "effect": "shake",
+          "params": {
+            "amount": 25
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.75
+          },
+          "probability": 0.6
+        },
+        {
+          "effect": "glow",
+          "params": {
+            "intensity": 0.9
+          },
+          "filter": {
+            "kinds": [
+              "downbeat"
+            ],
+            "sectionLabels": [
+              "intro",
+              "break"
+            ]
+          },
+          "probability": 0.5
+        },
+        {
+          "effect": "contrastPunch",
+          "params": {},
+          "filter": {
+            "kinds": [
+              "downbeat"
+            ],
+            "sectionLabels": [
+              "verse"
+            ]
+          },
+          "probability": 0.4
+        }
+      ],
+      "globalEffects": [],
+      "ramps": [
+        {
+          "preset": "fast-slow-fast",
+          "where": "random",
+          "probability": 0.35
+        },
+        {
+          "preset": "slow-end",
+          "where": "section-end",
+          "probability": 0.5
+        }
+      ],
+      "transitions": [
+        {
+          "effect": "zoomTransition",
+          "at": "section-boundary",
+          "probability": 0.6
+        },
+        {
+          "effect": "whipPan",
+          "at": "downbeat",
+          "probability": 0.15
+        }
+      ]
+    },
+    {
+      "id": "car",
+      "name": "Кар-эдит",
+      "description": "Плавные velocity, направленное размытие и свайпы, леттербокс, умеренный шейк на басах.",
+      "cutDensity": {
+        "intro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "verse": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "build": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "drop": {
+          "kinds": [
+            "bass"
+          ],
+          "every": 2,
+          "minStrength": 0.4
+        },
+        "break": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "outro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "other": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        }
+      },
+      "effects": [
+        {
+          "effect": "shake",
+          "params": {
+            "amount": 20,
+            "frequency": 8
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.6,
+            "sectionLabels": [
+              "drop"
+            ]
+          },
+          "probability": 0.9
+        },
+        {
+          "effect": "directionalBlur",
+          "params": {
+            "amount": 40
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.8
+          },
+          "probability": 0.5
+        }
+      ],
+      "globalEffects": [
+        {
+          "effect": "letterbox",
+          "params": {
+            "ratio": 2.39
+          }
+        },
+        {
+          "effect": "vignette",
+          "params": {
+            "amount": 0.4
+          }
+        }
+      ],
+      "ramps": [
+        {
+          "preset": "fast-slow-fast",
+          "where": "random",
+          "probability": 0.5
+        },
+        {
+          "preset": "ramp-to-drop",
+          "where": "drop-entry",
+          "probability": 0.6
+        }
+      ],
+      "transitions": [
+        {
+          "effect": "whipPan",
+          "at": "section-boundary",
+          "probability": 0.6
+        },
+        {
+          "effect": "blurTransition",
+          "at": "downbeat",
+          "probability": 0.1
+        }
+      ]
+    },
+    {
+      "id": "cinematic",
+      "name": "Кинематографичный",
+      "description": "Редкие склейки по даунбитам, пан-кропы, зерно и леттербокс, мягкие переходы.",
+      "cutDensity": {
+        "intro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "verse": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "build": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "drop": {
+          "kinds": [
+            "downbeat",
+            "bass"
+          ],
+          "every": 1,
+          "minStrength": 0.6
+        },
+        "break": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "outro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "other": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        }
+      },
+      "effects": [
+        {
+          "effect": "panCrop",
+          "params": {
+            "toScale": 1.12
+          },
+          "filter": {
+            "kinds": [
+              "downbeat"
+            ],
+            "sectionLabels": [
+              "intro",
+              "verse",
+              "break",
+              "outro"
+            ]
+          },
+          "probability": 0.7
+        },
+        {
+          "effect": "zoomPunch",
+          "params": {
+            "amount": 1.06
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.8,
+            "sectionLabels": [
+              "drop"
+            ]
+          },
+          "probability": 0.7
+        }
+      ],
+      "globalEffects": [
+        {
+          "effect": "filmGrain",
+          "params": {
+            "amount": 0.1
+          }
+        },
+        {
+          "effect": "letterbox",
+          "params": {
+            "ratio": 2.39
+          }
+        }
+      ],
+      "ramps": [
+        {
+          "preset": "slow-end",
+          "where": "section-end",
+          "probability": 0.6
+        }
+      ],
+      "transitions": [
+        {
+          "effect": "blurTransition",
+          "at": "section-boundary",
+          "probability": 0.7
+        },
+        {
+          "effect": "flashTransition",
+          "at": "section-boundary",
+          "probability": 0.2
+        }
+      ]
+    },
+    {
+      "id": "velocity",
+      "name": "TikTok velocity",
+      "description": "Почти каждый клип с ramp «быстро–медленно–быстро», зум-панчи и вспышки на сильных ударах.",
+      "cutDensity": {
+        "intro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "verse": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "build": {
+          "kinds": [
+            "beat"
+          ],
+          "every": 2,
+          "minStrength": 0
+        },
+        "drop": {
+          "kinds": [
+            "bass"
+          ],
+          "every": 2,
+          "minStrength": 0.4
+        },
+        "break": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "outro": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        },
+        "other": {
+          "kinds": [
+            "downbeat"
+          ],
+          "every": 1,
+          "minStrength": 0
+        }
+      },
+      "effects": [
+        {
+          "effect": "zoomPunch",
+          "params": {
+            "amount": 1.2
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.6
+          },
+          "probability": 0.9
+        },
+        {
+          "effect": "flash",
+          "params": {
+            "opacity": 0.5
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.85
+          },
+          "probability": 0.5
+        },
+        {
+          "effect": "rgbSplit",
+          "params": {
+            "amount": 8
+          },
+          "filter": {
+            "kinds": [
+              "bass"
+            ],
+            "minStrength": 0.7,
+            "sectionLabels": [
+              "drop"
+            ]
+          },
+          "probability": 0.5
+        }
+      ],
+      "globalEffects": [],
+      "ramps": [
+        {
+          "preset": "fast-slow-fast",
+          "where": "random",
+          "probability": 0.85
+        },
+        {
+          "preset": "ramp-to-drop",
+          "where": "drop-entry",
+          "probability": 1
+        }
+      ],
+      "transitions": [
+        {
+          "effect": "zoomTransition",
+          "at": "section-boundary",
+          "probability": 0.5
+        }
+      ]
+    }
+  ]
+}

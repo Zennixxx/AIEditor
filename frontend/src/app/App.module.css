@@ -1,0 +1,11 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  padding: var(--gap);
+}

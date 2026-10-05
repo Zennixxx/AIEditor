@@ -1,0 +1,56 @@
+[
+  {
+    "id": "ast_3f1c9a0b7d2e4c61",
+    "kind": "video",
+    "name": "street_run.mp4",
+    "path": "D:\\Footage\\street_run.mp4",
+    "duration": 12.0,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30.0,
+    "hasAudio": true,
+    "codec": "h264",
+    "browserDecodable": true,
+    "status": "ready",
+    "derived": {
+      "proxy": "/api/assets/ast_3f1c9a0b7d2e4c61/proxy.mp4",
+      "thumbs": "/api/assets/ast_3f1c9a0b7d2e4c61/thumbs.json",
+      "audio": "/api/assets/ast_3f1c9a0b7d2e4c61/audio.m4a",
+      "waveform": "/api/assets/ast_3f1c9a0b7d2e4c61/waveform.json"
+    }
+  },
+  {
+    "id": "ast_8a7e5d4c3b2a1908",
+    "kind": "video",
+    "name": "drift_closeup.mov",
+    "path": "D:\\Footage\\drift_closeup.mov",
+    "duration": 8.0,
+    "width": 3840,
+    "height": 2160,
+    "fps": 59.94,
+    "hasAudio": false,
+    "codec": "prores",
+    "browserDecodable": false,
+    "status": "ready",
+    "derived": {
+      "proxy": "/api/assets/ast_8a7e5d4c3b2a1908/proxy.mp4",
+      "thumbs": "/api/assets/ast_8a7e5d4c3b2a1908/thumbs.json",
+      "mezzanine": "/api/assets/ast_8a7e5d4c3b2a1908/mezzanine.mp4"
+    }
+  },
+  {
+    "id": "ast_c0ffee1234abcd56",
+    "kind": "audio",
+    "name": "phonk_track.mp3",
+    "path": "D:\\Music\\phonk_track.mp3",
+    "duration": 96.0,
+    "hasAudio": true,
+    "codec": "mp3",
+    "browserDecodable": true,
+    "status": "ready",
+    "derived": {
+      "audio": "/api/assets/ast_c0ffee1234abcd56/audio.m4a",
+      "waveform": "/api/assets/ast_c0ffee1234abcd56/waveform.json"
+    }
+  }
+]

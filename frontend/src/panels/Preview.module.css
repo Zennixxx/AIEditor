@@ -1,0 +1,28 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  margin: 8px;
+  background: #000;
+  border-radius: 4px;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+
+.timecode {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}

@@ -1,0 +1,5 @@
+dist
+public/mockServiceWorker.js
+src/shared/types.gen.ts
+playwright-report
+test-results

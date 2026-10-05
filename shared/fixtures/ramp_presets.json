@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "presets": [
+    {
+      "id": "fast-slow-fast",
+      "name": "Быстро – медленно – быстро",
+      "description": "Velocity-классика: разгон, замедление в середине, снова разгон.",
+      "timeRemap": {
+        "keyframes": [
+          { "u": 0, "speed": 3, "ease": "easeInOut" },
+          { "u": 0.35, "speed": 0.25, "ease": "hold" },
+          { "u": 0.65, "speed": 0.25, "ease": "easeInOut" },
+          { "u": 1, "speed": 3, "ease": "linear" }
+        ],
+        "fit": "stretch",
+        "frameBlend": true
+      }
+    },
+    {
+      "id": "slow-end",
+      "name": "Замедление к концу",
+      "description": "Обычная скорость, к концу клипа плавно замедляется.",
+      "timeRemap": {
+        "keyframes": [
+          { "u": 0, "speed": 1, "ease": "linear" },
+          { "u": 0.6, "speed": 1, "ease": "easeIn" },
+          { "u": 1, "speed": 0.2, "ease": "linear" }
+        ],
+        "fit": "stretch",
+        "frameBlend": true
+      }
+    },
+    {
+      "id": "ramp-to-drop",
+      "name": "Разгон к дропу",
+      "description": "Начинается медленно и разгоняется к концу слота — ставится перед дропом.",
+      "timeRemap": {
+        "keyframes": [
+          { "u": 0, "speed": 0.3, "ease": "easeIn" },
+          { "u": 1, "speed": 4, "ease": "linear" }
+        ],
+        "fit": "stretch",
+        "frameBlend": true
+      }
+    },
+    {
+      "id": "slow-start",
+      "name": "Выход из замедления",
+      "description": "Начало в slow-motion, затем нормальная скорость.",
+      "timeRemap": {
+        "keyframes": [
+          { "u": 0, "speed": 0.2, "ease": "easeOut" },
+          { "u": 0.4, "speed": 1, "ease": "linear" },
+          { "u": 1, "speed": 1, "ease": "linear" }
+        ],
+        "fit": "stretch",
+        "frameBlend": true
+      }
+    },
+    {
+      "id": "pulse",
+      "name": "Пульс",
+      "description": "Качели скорости на один бит: быстро – медленно – быстро, короче и резче.",
+      "timeRemap": {
+        "keyframes": [
+          { "u": 0, "speed": 2, "ease": "easeInOut" },
+          { "u": 0.5, "speed": 0.4, "ease": "easeInOut" },
+          { "u": 1, "speed": 2, "ease": "linear" }
+        ],
+        "fit": "stretch",
+        "frameBlend": true
+      }
+    }
+  ]
+}

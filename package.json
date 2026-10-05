@@ -1,0 +1,20 @@
+{
+  "name": "aieditor",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-ассистент для монтажа эдитов под музыку",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "uv --directory backend run uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload --reload-dir app",
+    "dev:web": "npm --prefix frontend run dev",
+    "dev:mock": "npm --prefix frontend run dev:mock",
+    "setup": "npm install && npm --prefix frontend install && uv --directory backend sync && powershell -NoProfile -ExecutionPolicy Bypass -File tools/fetch_binaries.ps1",
+    "gen": "uv --directory backend run gen-models && npm --prefix frontend run gen:types",
+    "gen:fixtures": "uv --directory backend run python ../tools/gen_fixtures.py && uv --directory backend run gen-ramp-vectors",
+    "test": "uv --directory backend run pytest -q && npm --prefix frontend test",
+    "check": "uv --directory backend run ruff check && uv --directory backend run pyright && npm --prefix frontend run typecheck && npm --prefix frontend run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

@@ -1,0 +1,70 @@
+:root {
+  --font-ui: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --bg: #0e0f12;
+  --panel: #16181d;
+  --panel-2: #1c1f26;
+  --panel-3: #242832;
+  --border: #2a2e38;
+  --border-strong: #3a3f4c;
+  --text: #e6e8ee;
+  --text-dim: #9aa1b2;
+  --text-faint: #6b7183;
+
+  --accent: #8b6cff;
+  --accent-dim: #8b6cff33;
+  --ok: #3ecf8e;
+  --warn: #f5b942;
+  --err: #ff5d6c;
+  --playhead: #ff4d5e;
+  --snap: #ffd84d;
+
+  /* цвета маркеров — docs/FRONTEND.md фаза 2 */
+  --mk-bass: #ff4d5e;
+  --mk-beat: #8a90a0;
+  --mk-downbeat: #ffffff;
+  --mk-manual: #ffd84d;
+  --mk-ai: #b18cff;
+  --mk-onset: #4dc3ff;
+
+  --radius: 6px;
+  --gap: 4px;
+  --header-h: 28px;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

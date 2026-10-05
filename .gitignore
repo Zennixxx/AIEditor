@@ -1,0 +1,66 @@
+# --- secrets ---
+.env
+.env.*
+!.env.example
+!frontend/.env.mock
+
+# --- runtime data & binaries ---
+/data/
+/tools/bin/
+/tools/.download/
+*.log
+
+# --- node ---
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+.vite/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.eslintcache
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+*.egg-info/
+build/
+.coverage
+htmlcov/
+
+# --- desktop builds (phase 8) ---
+src-tauri/target/
+*.spec
+
+# --- media (never commit user footage) ---
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.aac
+*.ogg
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# --- Claude Code local settings ---
+.claude/settings.local.json

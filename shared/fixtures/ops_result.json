@@ -1,0 +1,63 @@
+{
+  "ops": [
+    {
+      "op": "addTrack",
+      "track": {
+        "id": "tmp_fxtrack",
+        "kind": "fx",
+        "name": "AI: шейк",
+        "muted": false,
+        "locked": false,
+        "hidden": false
+      }
+    },
+    {
+      "op": "applyEffectToMarkers",
+      "effect": "shake",
+      "params": {
+        "amount": 50
+      },
+      "filter": {
+        "musicClipId": "clp_music00001",
+        "kinds": [
+          "bass"
+        ],
+        "minStrength": 0.6,
+        "sectionLabels": [
+          "drop"
+        ]
+      },
+      "target": {
+        "trackId": "tmp_fxtrack"
+      },
+      "scaleByStrength": true
+    },
+    {
+      "op": "setTimeRemap",
+      "clipId": "clp_drop000001",
+      "timeRemap": {
+        "keyframes": [
+          {
+            "u": 0,
+            "speed": 1,
+            "ease": "linear"
+          },
+          {
+            "u": 0.6,
+            "speed": 1,
+            "ease": "easeIn"
+          },
+          {
+            "u": 1,
+            "speed": 0.2,
+            "ease": "linear"
+          }
+        ],
+        "fit": "stretch",
+        "frameBlend": true
+      }
+    }
+  ],
+  "explanation": "Добавил дорожку эффектов, шейк на сильные басы в дропах (сильнее на сильных ударах) и замедление к концу первого клипа дропа.",
+  "warnings": []
+}

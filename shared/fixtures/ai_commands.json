@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "projectFixture": "project.json",
+  "commands": [
+    {
+      "id": "shake-drop",
+      "message": "Поставь шейк на каждый сильный бас в дропе",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "applyEffectToMarkers"
+      ]
+    },
+    {
+      "id": "flicker-build",
+      "message": "Фликер на каждый второй бит в нарастании",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "applyEffectToMarkers"
+      ]
+    },
+    {
+      "id": "velocity-end",
+      "message": "Сделай velocity в конце видео: быстро-медленно-быстро на последних клипах",
+      "selection": {
+        "clipIds": [
+          "clp_drop000002",
+          "clp_drop000003"
+        ],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "setTimeRemap"
+      ]
+    },
+    {
+      "id": "cut-to-beats",
+      "message": "Нарежь выделенные клипы по басам в первом дропе",
+      "selection": {
+        "clipIds": [
+          "clp_drop000001",
+          "clp_drop000002"
+        ],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "cutToMarkers"
+      ]
+    },
+    {
+      "id": "remove-weak",
+      "message": "Удали слабые маркеры баса в интро",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "removeMarkers"
+      ]
+    },
+    {
+      "id": "flash-strongest",
+      "message": "Белая вспышка только на самых сильных ударах",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "applyEffectToMarkers"
+      ]
+    },
+    {
+      "id": "slow-selected",
+      "message": "Замедли выделенный клип к концу",
+      "selection": {
+        "clipIds": [
+          "clp_drop000001"
+        ],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "setTimeRemap"
+      ]
+    },
+    {
+      "id": "zoom-punch-downbeats",
+      "message": "Зум-панч на каждый даунбит во втором дропе",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "applyEffectToMarkers"
+      ]
+    },
+    {
+      "id": "transition-sections",
+      "message": "Добавь глитч-переходы на границах секций",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [
+        "addEffect"
+      ]
+    },
+    {
+      "id": "ambiguous",
+      "message": "Сделай красиво",
+      "selection": {
+        "clipIds": [],
+        "markerIds": [],
+        "effectIds": []
+      },
+      "playhead": 30.0,
+      "expectedOps": [],
+      "notes": "Неоднозначная команда: ожидается пустой ops и уточняющий вопрос в explanation."
+    }
+  ]
+}
