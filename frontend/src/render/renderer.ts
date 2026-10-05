@@ -3,7 +3,7 @@
 // Аккумулятор (непрозрачный, цвет фона) ← слои снизу вверх: кадр клипа → transform → эффекты клипа →
 // смешение по blendMode/opacity; эффекты fx-дорожки применяются к аккумулятору. Промежуточные кадры —
 // в премультиплицированной альфе, цели берутся из пула (без аллокаций GL после прогрева).
-import { EFFECT_MODULES, type EffectFrame, type EffectModule } from './effects'
+import { EFFECT_MODULES, effectStages, type EffectFrame, type EffectStage } from './effects'
 import type { EffectPass, FramePlan, LayerStep } from './framePlan'
 import type { FrameImage, FrameResolver, FrameSourceKind } from './frameSource'
 import { createTexture, FRAGMENT_HEADER, parseColor, Program, TargetPool, type Target } from './gl'
@@ -75,7 +75,8 @@ export class Renderer {
   private readonly layerProgram: Program
   private readonly compositeProgram: Program
   private readonly blitProgram: Program
-  private readonly effectPrograms = new Map<string, Program | null>()
+  /** Программы проходов эффекта; null — у эффекта нет шейдера или он не скомпилировался. */
+  private readonly effectPrograms = new Map<string, { stage: EffectStage; program: Program }[] | null>()
   private readonly sources = new Map<TexImageSource, SourceTexture>()
   private readonly vao: WebGLVertexArrayObject
   private tick = 0
@@ -107,19 +108,24 @@ export class Renderer {
     for (const id of EFFECT_MODULES.keys()) this.effectProgram(id)
   }
 
-  private effectProgram(id: string): Program | null {
+  private effectProgram(id: string): { stage: EffectStage; program: Program }[] | null {
     if (this.effectPrograms.has(id)) return this.effectPrograms.get(id)!
     const mod = EFFECT_MODULES.get(id)
-    let program: Program | null = null
+    let programs: { stage: EffectStage; program: Program }[] | null = null
     if (mod) {
       try {
-        program = new Program(this.gl, FRAGMENT_HEADER + mod.fragment, `effect:${id}`)
+        programs = effectStages(mod).map((stage, i) => ({
+          stage,
+          program: new Program(this.gl, FRAGMENT_HEADER + stage.fragment, `effect:${id}#${i}`),
+        }))
+        if (programs.length === 0) programs = null
       } catch (e) {
         console.error(e)
+        programs = null
       }
     }
-    this.effectPrograms.set(id, program)
-    return program
+    this.effectPrograms.set(id, programs)
+    return programs
   }
 
   /** Рендер кадра плана в буфер canvas текущего размера. */
@@ -215,25 +221,31 @@ export class Renderer {
 
   /** Эффект `pass` над `input` в новую цель; null — у эффекта нет шейдера (кадр не меняется). */
   private applyEffect(pass: EffectPass, input: Target, plan: FramePlan, px: number): Target | null {
-    const program = this.effectProgram(pass.item.effect)
-    const mod = EFFECT_MODULES.get(pass.item.effect) as EffectModule
-    if (!program) return null
+    const programs = this.effectProgram(pass.item.effect)
+    if (!programs) return null
     const frame: EffectFrame = { pass, fps: plan.fps, frame: plan.frame, res: [input.w, input.h], px }
-    const out = this.pool.acquire()
-    program.use()
-    this.bindTexture(0, input.tex)
-    program
-      .setInt('u_tex', 0)
-      .set('u_res', [input.w, input.h])
-      .set('u_intensity', pass.intensity)
-      .set('u_time', pass.tau)
-      .set('u_seed', pass.seed)
-      .set('u_frame', plan.frame)
-      .set('u_px', px)
-    const uniforms = mod.uniforms?.(frame)
-    if (uniforms) for (const name in uniforms) program.set(name, uniforms[name]!)
-    this.draw(out)
-    return out
+    let current = input
+    for (const { stage, program } of programs) {
+      const out = this.pool.acquire()
+      program.use()
+      this.bindTexture(0, current.tex)
+      this.bindTexture(1, input.tex)
+      program
+        .setInt('u_tex', 0)
+        .setInt('u_src', 1)
+        .set('u_res', [input.w, input.h])
+        .set('u_intensity', pass.intensity)
+        .set('u_time', pass.tau)
+        .set('u_seed', pass.seed)
+        .set('u_frame', plan.frame)
+        .set('u_px', px)
+      const uniforms = stage.uniforms?.(frame)
+      if (uniforms) for (const name in uniforms) program.set(name, uniforms[name]!)
+      this.draw(out)
+      if (current !== input) this.pool.release(current)
+      current = out
+    }
+    return current
   }
 
   private draw(target: Target): void {
@@ -284,7 +296,7 @@ export class Renderer {
     this.pool.dispose()
     for (const e of this.sources.values()) gl.deleteTexture(e.tex)
     this.sources.clear()
-    for (const p of this.effectPrograms.values()) p?.dispose()
+    for (const list of this.effectPrograms.values()) for (const p of list ?? []) p.program.dispose()
     this.layerProgram.dispose()
     this.compositeProgram.dispose()
     this.blitProgram.dispose()

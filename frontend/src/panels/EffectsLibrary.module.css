@@ -28,6 +28,8 @@
 }
 
 .heading {
+  display: flex;
+  align-items: center;
   margin: 0;
   font-size: 10px;
   font-weight: 600;
@@ -63,9 +65,82 @@
   border-color: var(--accent);
 }
 
-.card[data-ready='false'] {
+.card[data-kind='preset'] {
+  border-color: var(--accent-dim);
+}
+
+.count {
+  min-width: 14px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 7px;
+  background: var(--panel-3);
+  color: var(--text-dim);
+}
+
+.headingButton {
+  margin-left: 6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.headingButton:not(:disabled):hover {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.headingButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.presetForm {
+  display: flex;
+  gap: 4px;
+}
+
+.presetForm .search {
+  flex: 1;
+  min-width: 0;
+}
+
+.formButton {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--accent-dim);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.formButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hint {
+  font-size: 11px;
   color: var(--text-faint);
-  border-style: dashed;
+}
+
+.error {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #ff5d6c22;
+  color: var(--err);
+  font-size: 11px;
 }
 
 .name {

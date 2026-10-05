@@ -5,7 +5,7 @@ import { useAssets } from '@/store/assets'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { TimelineController, type PointerInfo } from './controller'
-import { ASSET_DND_TYPE, EFFECT_DND_TYPE } from './dnd'
+import { ASSET_DND_TYPE, EFFECT_DND_TYPE, PRESET_DND_TYPE } from './dnd'
 import { followPlayhead, layoutTracks } from './geometry'
 import { DEFAULT_PALETTE, drawTimeline, type MediaSource, type Palette } from './render'
 import styles from './Timeline.module.css'
@@ -49,7 +49,8 @@ export function Timeline() {
   const project = useProject((s) => s.project)
   const scrollY = useUi((s) => s.scrollY)
   const selectionCount = useUi((s) => s.selection.length)
-  const rows = useMemo(() => layoutTracks(project), [project])
+  const lanes = useUi((s) => s.propLanes)
+  const rows = useMemo(() => layoutTracks(project, lanes), [project, lanes])
   const clipCount = useMemo(() => [...allClips(project)].length, [project])
   // эффекты: элементы fx-дорожек + эффекты внутри клипов
   const effectCount = useMemo(
@@ -102,6 +103,7 @@ export function Timeline() {
         solo: ui.solo,
         markers: controller.markers(),
         sections: controller.sections(),
+        keys: controller.keys(),
         media,
         palette,
       })
@@ -200,6 +202,10 @@ export function Timeline() {
     if (!e.dataTransfer.types.includes(EFFECT_DND_TYPE)) return null
     return useUi.getState().draggingEffect
   }
+  const dragPreset = (e: ReactDragEvent) => {
+    if (!e.dataTransfer.types.includes(PRESET_DND_TYPE)) return null
+    return useUi.getState().draggingPreset
+  }
   const local = (e: ReactDragEvent) => {
     const r = canvasRef.current!.getBoundingClientRect()
     return { x: e.clientX - r.left, y: e.clientY - r.top }
@@ -220,11 +226,14 @@ export function Timeline() {
         onDragOver={(e) => {
           if (!ctrlRef.current) return
           const { x, y } = local(e)
-          const fx = dragEffect(e)
-          const id = fx ? null : dragAsset(e)
-          const ok = fx
-            ? ctrlRef.current.effectDragOver(x, y, fx, e.shiftKey)
-            : !!id && ctrlRef.current.dragOver(x, y, id, e.shiftKey)
+          const preset = dragPreset(e)
+          const fx = preset ? null : dragEffect(e)
+          const id = preset || fx ? null : dragAsset(e)
+          const ok = preset
+            ? ctrlRef.current.presetDragOver(x, y, preset, e.shiftKey)
+            : fx
+              ? ctrlRef.current.effectDragOver(x, y, fx, e.shiftKey)
+              : !!id && ctrlRef.current.dragOver(x, y, id, e.shiftKey)
           if (ok) {
             e.preventDefault()
             e.dataTransfer.dropEffect = 'copy'
@@ -232,6 +241,14 @@ export function Timeline() {
         }}
         onDragLeave={() => ctrlRef.current?.dragLeave()}
         onDrop={(e) => {
+          const preset = e.dataTransfer.getData(PRESET_DND_TYPE) || dragPreset(e)
+          if (preset && ctrlRef.current) {
+            e.preventDefault()
+            const { x, y } = local(e)
+            ctrlRef.current.presetDrop(x, y, preset, e.shiftKey)
+            useUi.getState().setDraggingPreset(null)
+            return
+          }
           const fx = e.dataTransfer.getData(EFFECT_DND_TYPE) || dragEffect(e)
           if (fx && ctrlRef.current) {
             e.preventDefault()

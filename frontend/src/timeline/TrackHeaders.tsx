@@ -5,7 +5,7 @@ import { planTrackMove, trackGroup } from '@/model/tracks'
 import type { EditOp, Track } from '@/shared/types.gen'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
-import { RULER_H, type TrackRow } from './geometry'
+import { LANE_H, LANE_LABELS, RULER_H, type TrackRow } from './geometry'
 import styles from './Timeline.module.css'
 
 type Flag = 'muted' | 'locked' | 'hidden'
@@ -89,88 +89,99 @@ export function TrackHeaders({ rows, scrollY }: { rows: readonly TrackRow[]; scr
           {rows.map((row) => {
             const t = row.track
             return (
-              <div
-                key={t.id}
-                className={styles.trackHeader}
-                data-kind={t.kind}
-                data-dragging={drag?.id === t.id || undefined}
-                style={{ height: row.height }}
-                data-testid={`track-header-${t.name}`}
-              >
+              <div key={t.id} style={{ height: row.height }}>
                 <div
-                  className={styles.grip}
-                  title="Перетащите, чтобы переставить"
-                  onPointerDown={(e) => startReorder(row, e)}
+                  className={styles.trackHeader}
+                  data-kind={t.kind}
+                  data-dragging={drag?.id === t.id || undefined}
+                  style={{ height: row.itemHeight }}
+                  data-testid={`track-header-${t.name}`}
                 >
-                  ⋮⋮
-                </div>
-                {editing === t.id ? (
-                  <input
-                    className={styles.nameInput}
-                    defaultValue={t.name}
-                    autoFocus
-                    onBlur={(e) => {
-                      rename(t, e.currentTarget.value)
-                      setEditing(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') e.currentTarget.blur()
-                      if (e.key === 'Escape') setEditing(null)
-                    }}
-                  />
-                ) : (
-                  <span
-                    className={styles.trackName}
-                    title="Двойной клик — переименовать"
-                    onDoubleClick={() => setEditing(t.id)}
+                  <div
+                    className={styles.grip}
+                    title="Перетащите, чтобы переставить"
+                    onPointerDown={(e) => startReorder(row, e)}
                   >
-                    {t.name}
-                  </span>
-                )}
-                <div className={styles.trackButtons}>
-                  {t.kind !== 'fx' && (
-                    <ToggleButton on={t.muted} label="M" title="Mute" onClick={() => setFlag(t, 'muted')} />
-                  )}
-                  {t.kind === 'audio' && (
-                    <ToggleButton
-                      on={solo.includes(t.id)}
-                      label="S"
-                      title="Solo"
-                      onClick={() => toggleSolo(t.id)}
+                    ⋮⋮
+                  </div>
+                  {editing === t.id ? (
+                    <input
+                      className={styles.nameInput}
+                      defaultValue={t.name}
+                      autoFocus
+                      onBlur={(e) => {
+                        rename(t, e.currentTarget.value)
+                        setEditing(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur()
+                        if (e.key === 'Escape') setEditing(null)
+                      }}
                     />
+                  ) : (
+                    <span
+                      className={styles.trackName}
+                      title="Двойной клик — переименовать"
+                      onDoubleClick={() => setEditing(t.id)}
+                    >
+                      {t.name}
+                    </span>
                   )}
-                  {t.kind !== 'audio' && (
+                  <div className={styles.trackButtons}>
+                    {t.kind !== 'fx' && (
+                      <ToggleButton on={t.muted} label="M" title="Mute" onClick={() => setFlag(t, 'muted')} />
+                    )}
+                    {t.kind === 'audio' && (
+                      <ToggleButton
+                        on={solo.includes(t.id)}
+                        label="S"
+                        title="Solo"
+                        onClick={() => toggleSolo(t.id)}
+                      />
+                    )}
+                    {t.kind !== 'audio' && (
+                      <ToggleButton
+                        on={t.hidden}
+                        label="H"
+                        title="Скрыть"
+                        onClick={() => setFlag(t, 'hidden')}
+                      />
+                    )}
                     <ToggleButton
-                      on={t.hidden}
-                      label="H"
-                      title="Скрыть"
-                      onClick={() => setFlag(t, 'hidden')}
+                      on={t.locked}
+                      label="L"
+                      title="Заблокировать"
+                      onClick={() => setFlag(t, 'locked')}
                     />
-                  )}
-                  <ToggleButton
-                    on={t.locked}
-                    label="L"
-                    title="Заблокировать"
-                    onClick={() => setFlag(t, 'locked')}
-                  />
-                  <button
-                    className={styles.toggle}
-                    title="Сомкнуть пробелы между элементами дорожки"
-                    disabled={t.locked || !gaps.has(t.id)}
-                    onClick={() => rippleTrack(t.id)}
-                    data-testid={`ripple-${t.name}`}
-                  >
-                    ⇥
-                  </button>
-                  <button
-                    className={styles.iconButton}
-                    title="Удалить дорожку"
-                    onClick={() => removeTrack(t.id)}
-                  >
-                    ×
-                  </button>
+                    <button
+                      className={styles.toggle}
+                      title="Сомкнуть пробелы между элементами дорожки"
+                      disabled={t.locked || !gaps.has(t.id)}
+                      onClick={() => rippleTrack(t.id)}
+                      data-testid={`ripple-${t.name}`}
+                    >
+                      ⇥
+                    </button>
+                    <button
+                      className={styles.iconButton}
+                      title="Удалить дорожку"
+                      onClick={() => removeTrack(t.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {t.kind === 'audio' && <VolumeSlider track={t} />}
                 </div>
-                {t.kind === 'audio' && <VolumeSlider track={t} />}
+                {row.lanes.map((lane) => (
+                  <div
+                    key={lane}
+                    className={styles.laneHeader}
+                    style={{ height: LANE_H }}
+                    data-testid={`lane-header-${t.name}-${lane}`}
+                  >
+                    {LANE_LABELS[lane]}
+                  </div>
+                ))}
               </div>
             )
           })}

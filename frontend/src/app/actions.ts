@@ -1,14 +1,33 @@
 // Команды редактора — общие для горячих клавиш и кнопок. Логика изменений — в model/, здесь только связка со сторами.
 import { copyItems, planDelete, planPaste, planSplitAt } from '@/model/edit'
-import { findClip, findItem, findMarker } from '@/model/lookup'
+import { allClips, findClip, findItem, findMarker } from '@/model/lookup'
 import { planRippleTrack } from '@/model/ripple'
 import { neighborMarkerTime, planAddMarker, planDeleteMarkers, timelineMarkers } from '@/model/markers'
 import { trackInput } from '@/model/project'
 import { newTrackIndex } from '@/model/tracks'
-import type { EffectPatch, TrackKind } from '@/shared/types.gen'
+import type { Animatable, Ease, EffectPatch, TrackKind } from '@/shared/types.gen'
 import type { ApplyFxOp } from '@/model/applyEffectToMarkers'
 import type { CutOp } from '@/model/cutToMarkers'
 import { planEffectDrop, type EffectDropTarget } from '@/model/effects'
+import { findCuts, planTransitions, type Cut } from '@/model/transitions'
+import { planPresetDrop } from '@/model/presets'
+import { clipKeyTimes, laneIsAnimated, planKeysEase, planRemoveKeys } from '@/model/clipKeys'
+import {
+  animPatch,
+  clipAnimatable,
+  evaluateAnimatable,
+  keyAt,
+  keyTimes,
+  LANE_PROPS,
+  neighborKey,
+  removeKey,
+  setKey,
+  setKeyEase,
+  setValueAt,
+  toggleAnimation,
+  type AnimProp,
+} from '@/model/keyframes'
+import { findPreset } from '@/store/presets'
 import { OpsError } from '@/model/ops/errors'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
@@ -61,7 +80,16 @@ export function gotoMarker(dir: 1 | -1): void {
 }
 
 export function deleteSelection(ripple: boolean): void {
-  // выделенные маркеры удаляются раньше элементов дорожек
+  // выделенные ключевые кадры и маркеры удаляются раньше элементов дорожек
+  const keys = ui().keySelection
+  if (keys.length > 0) {
+    const ops = planRemoveKeys(project(), keys)
+    ui().selectKeys([])
+    if (ops.length > 0) {
+      useProject.getState().dispatch(ops, { label: 'Удалить ключи' })
+      return
+    }
+  }
   const markers = liveMarkerSelection()
   if (markers.length > 0) {
     const res = useProject.getState().dispatch(planDeleteMarkers(project(), markers), {
@@ -223,4 +251,131 @@ export function updateEffect(effectId: string, patch: EffectPatch, mergeKey?: st
 
 export function removeEffect(effectId: string): void {
   useProject.getState().dispatch([{ op: 'removeEffect', effectId }], { label: 'Удалить эффект' })
+}
+
+/** Переход на стыки `cuts`; новые переходы становятся выделением. Ошибка — в lastError стора проекта. */
+export function addTransitions(effectId: string, cuts: readonly Cut[]): boolean {
+  let ops
+  try {
+    ops = planTransitions(project(), effectId, cuts).ops
+  } catch (e) {
+    if (e instanceof OpsError) {
+      useProject.setState({ lastError: e.message })
+      return false
+    }
+    throw e
+  }
+  const res = useProject.getState().dispatch(ops, {
+    label: cuts.length > 1 ? 'Переходы на стыки' : 'Добавить переход',
+  })
+  if (res.ok) ui().select(res.created.filter((id) => id.startsWith('fx_')))
+  return res.ok
+}
+
+/** Переход на все стыки выделенных клипов (ничего не выделено — на все стыки видеодорожек). */
+export function transitionsAtCuts(effectId: string): boolean {
+  const p = project()
+  const clips = liveSelection().filter((id) => findClip(p, id))
+  return addTransitions(effectId, findCuts(p, clips.length > 0 ? new Set(clips) : undefined))
+}
+
+/** Пресет-комбо брошен на таймлайн; ошибка — в lastError стора проекта. */
+export function dropPreset(presetId: string, target: EffectDropTarget, t: number): boolean {
+  const preset = findPreset(presetId)
+  if (!preset) return false
+  let ops
+  try {
+    ops = planPresetDrop(project(), preset, target, t)
+  } catch (e) {
+    if (e instanceof OpsError) {
+      useProject.setState({ lastError: e.message })
+      return false
+    }
+    throw e
+  }
+  const res = useProject.getState().dispatch(ops, { label: `Пресет «${preset.name}»` })
+  if (!res.ok) return false
+  if (typeof target === 'object' && 'clipId' in target) ui().select([target.clipId])
+  else {
+    const p = project()
+    ui().select(res.created.filter((id) => id.startsWith('fx_') && findItem(p, id)))
+  }
+  return true
+}
+
+/** `U`: показать дорожки анимированных свойств выделенных клипов (ничего не выделено — всех), повторно — скрыть. */
+export function toggleAnimatedLanes(): void {
+  if (ui().propLanes.length > 0) {
+    ui().setLanes([])
+    return
+  }
+  const p = project()
+  const selected = new Set(liveSelection())
+  const clips = [...allClips(p)].filter((c) => selected.size === 0 || selected.has(c.id))
+  ui().setLanes(LANE_PROPS.filter((l) => clips.some((c) => laneIsAnimated(c, l))))
+}
+
+// --- ключевые кадры transform/opacity (инспектор клипа) ---
+
+function editAnim(
+  clipId: string,
+  prop: AnimProp,
+  fn: (value: Animatable) => Animatable,
+  label: string,
+  mergeKey?: string,
+): boolean {
+  const clip = findClip(project(), clipId)?.clip
+  if (!clip) return false
+  const before = clipAnimatable(clip, prop)
+  const after = fn(before)
+  if (after === before) return false
+  return useProject.getState().dispatch([{ op: 'updateClip', clipId, patch: animPatch(clip, prop, after) }], {
+    label,
+    ...(mergeKey ? { mergeKey: `anim:${clipId}:${prop}:${mergeKey}` } : {}),
+  }).ok
+}
+
+/** Значение свойства во время `t` от начала клипа (у анимированного — ключ, как автоключ в AE). */
+export function setAnimValue(
+  clipId: string,
+  prop: AnimProp,
+  t: number,
+  v: number,
+  mergeKey?: string,
+): boolean {
+  return editAnim(clipId, prop, (a) => setValueAt(a, t, v), 'Свойство клипа', mergeKey)
+}
+
+/** «Секундомер»: включить/выключить анимацию свойства. */
+export function toggleAnim(clipId: string, prop: AnimProp, t: number): boolean {
+  return editAnim(clipId, prop, (a) => toggleAnimation(a, t), 'Анимация свойства')
+}
+
+/** Ключ во время `t`: есть — удалить, нет — поставить с текущим значением. */
+export function toggleKey(clipId: string, prop: AnimProp, t: number): boolean {
+  return editAnim(
+    clipId,
+    prop,
+    (a) => (keyAt(a, t) ? removeKey(a, t) : setKey(a, t, evaluateAnimatable(a, t))),
+    'Ключевой кадр',
+  )
+}
+
+/** Интерполяция ключей: выделенных на дорожках свойств, иначе — ключа `prop` во время `t`. */
+export function setKeysEase(clipId: string, prop: AnimProp, t: number, ease: Ease): boolean {
+  const sel = ui().keySelection
+  if (sel.length > 0) {
+    const ops = planKeysEase(project(), sel, ease)
+    return ops.length > 0 && useProject.getState().dispatch(ops, { label: 'Интерполяция ключей' }).ok
+  }
+  return editAnim(clipId, prop, (a) => setKeyEase(a, t, ease), 'Интерполяция ключа')
+}
+
+/** Плейхед к соседнему ключу клипа (`prop` — по одному свойству, иначе по всем). */
+export function gotoKey(clipId: string, dir: 1 | -1, prop?: AnimProp): void {
+  const clip = findClip(project(), clipId)?.clip
+  if (!clip) return
+  const times = prop ? keyTimes(clipAnimatable(clip, prop)) : clipKeyTimes(clip)
+  const t = neighborKey(times, ui().playhead - clip.start, dir)
+  if (t !== null) ui().setPlayhead(clip.start + t)
 }

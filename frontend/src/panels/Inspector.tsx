@@ -4,6 +4,7 @@ import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { AnalysisPanel } from './AnalysisPanel'
 import { ClipEffects } from './ClipEffects'
+import { ClipTransform } from './ClipTransform'
 import { EffectEditor } from './EffectEditor'
 import styles from './Inspector.module.css'
 import { MarkerEditor } from './MarkerEditor'
@@ -27,6 +28,7 @@ export function Inspector() {
         <div className={styles.inspector}>
           {markerId && <MarkerEditor key={`marker:${markerId}`} markerId={markerId} />}
           {effectId && <EffectEditor key={`fx:${effectId}`} effectId={effectId} />}
+          {videoClipId && <ClipTransform key={`clip-tr:${videoClipId}`} clipId={videoClipId} />}
           {videoClipId && <ClipEffects key={`clip-fx:${videoClipId}`} clipId={videoClipId} />}
           {analysisClipId && <AnalysisPanel key={`analysis:${analysisClipId}`} clipId={analysisClipId} />}
         </div>

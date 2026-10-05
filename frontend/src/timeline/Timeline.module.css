@@ -58,6 +58,19 @@
   --track-color: #7a4ca0;
 }
 
+.laneHeader {
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 22px;
+  font-size: 10px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  background: var(--panel);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
 .trackHeader[data-dragging] {
   background: var(--panel-3);
 }

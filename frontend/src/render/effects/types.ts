@@ -16,11 +16,25 @@ export interface EffectFrame {
   px: number
 }
 
-export interface EffectModule {
-  id: string
+export interface EffectStage {
   /** Фрагментный шейдер без заголовка: свои uniform + `void main()`, пишет `o_color`. */
   fragment: string
   uniforms?(f: EffectFrame): Record<string, UniformValue>
+}
+
+/**
+ * Однопроходный эффект — `fragment` (+ `uniforms`). Многопроходный (glow) — `stages`: проход `i` читает
+ * результат прохода `i − 1` из `u_tex`, исходный кадр эффекта — из `u_src`.
+ */
+export interface EffectModule extends Partial<EffectStage> {
+  id: string
+  stages?: readonly EffectStage[]
+}
+
+/** Проходы модуля по порядку. */
+export function effectStages(m: EffectModule): readonly EffectStage[] {
+  if (m.stages) return m.stages
+  return m.fragment ? [{ fragment: m.fragment, ...(m.uniforms ? { uniforms: m.uniforms } : {}) }] : []
 }
 
 export function num(p: EffectParams, key: string, fallback = 0): number {
@@ -35,6 +49,12 @@ export function bool(p: EffectParams, key: string): boolean {
 export function str(p: EffectParams, key: string, fallback = ''): string {
   const v = p[key]
   return typeof v === 'string' ? v : fallback
+}
+
+/** Положение внутри эффекта 0..1 (у перехода стык — в 0.5). */
+export function progress(pass: EffectPass): number {
+  const d = pass.item.duration
+  return d > 0 ? Math.min(Math.max(pass.tau / d, 0), 1) : 0
 }
 
 /** Половина кадра «выдержки» для motion blur, сек. */

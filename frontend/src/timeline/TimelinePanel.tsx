@@ -3,9 +3,18 @@ import { Panel } from '@/panels/Panel'
 import { formatTimecode } from '@/shared/time'
 import { canRedo, canUndo, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
+import type { LaneProp } from '@/model/keyframes'
 import { MarkerFilter } from './MarkerFilter'
 import { Timeline } from './Timeline'
 import styles from './Timeline.module.css'
+import { LANE_LABELS } from './geometry'
+
+const LANE_BUTTONS: { lane: LaneProp; label: string }[] = [
+  { lane: 'position', label: 'P' },
+  { lane: 'scale', label: 'S' },
+  { lane: 'rotation', label: 'R' },
+  { lane: 'opacity', label: 'T' },
+]
 
 function Toolbar() {
   const tool = useUi((s) => s.tool)
@@ -16,6 +25,8 @@ function Toolbar() {
   const redoable = useProject(canRedo)
   const selection = useUi((s) => s.selection)
   const setTool = useUi((s) => s.setTool)
+  const lanes = useUi((s) => s.propLanes)
+  const toggleLane = useUi((s) => s.toggleLane)
 
   return (
     <div className={styles.toolbar}>
@@ -42,6 +53,18 @@ function Toolbar() {
       >
         Привязка
       </button>
+      <span className={styles.sep} />
+      {LANE_BUTTONS.map((b) => (
+        <button
+          key={b.lane}
+          aria-pressed={lanes.includes(b.lane)}
+          onClick={() => toggleLane(b.lane)}
+          title={`Дорожка свойства: ${LANE_LABELS[b.lane]}; U — анимированные свойства`}
+          data-testid={`lane-toggle-${b.lane}`}
+        >
+          {b.label}
+        </button>
+      ))}
       <span className={styles.sep} />
       <button onClick={actions.zoomOut} title="Отдалить (−)">
         −

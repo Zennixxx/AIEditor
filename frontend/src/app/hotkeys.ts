@@ -48,6 +48,13 @@ export function handleHotkey(e: KeyboardEvent): boolean {
     actions.deleteSelection(e.shiftKey)
     return true
   }
+  // дорожки свойств (как в AE): P — позиция, R — поворот, T — непрозрачность, Shift+S — масштаб
+  // (S без Shift — привязка), U — анимированные свойства / скрыть все
+  if (code === 'KeyP') return run(() => useUi.getState().toggleLane('position'))
+  if (code === 'KeyR') return run(() => useUi.getState().toggleLane('rotation'))
+  if (code === 'KeyT') return run(() => useUi.getState().toggleLane('opacity'))
+  if (e.shiftKey && code === 'KeyS') return run(() => useUi.getState().toggleLane('scale'))
+  if (code === 'KeyU') return run(actions.toggleAnimatedLanes)
   if (code === 'KeyC') return run(() => useUi.getState().setTool('blade'))
   if (code === 'KeyV') return run(() => useUi.getState().setTool('select'))
   if (code === 'KeyS') return run(actions.toggleSnap)
@@ -57,6 +64,7 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (key === 'escape') {
     useUi.getState().select([])
     useUi.getState().selectMarkers([])
+    useUi.getState().selectKeys([])
     useUi.getState().setTool('select')
     return true
   }

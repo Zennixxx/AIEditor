@@ -5,8 +5,9 @@ import { musicProject, sampleProject, seqIds } from '@/model/testUtils'
 import { effectsRegistry } from '@/shared/effects-registry'
 import type { Clip, EffectItem, Project } from '@/shared/types.gen'
 import { shakeOffset } from './effects/camera'
-import { EFFECT_MODULES } from './effects'
+import { EFFECT_MODULES, effectStages } from './effects'
 import { flickerLevel } from './effects/light'
+import { transitionTravel, zoomTransitionScale } from './effects/transition'
 import { buildFramePlan, effectPass, type LayerStep } from './framePlan'
 import { parseColor } from './gl'
 import { applyUvMatrix, IDENTITY_TRANSFORM, layerUvMatrix } from './layerMath'
@@ -100,13 +101,29 @@ describe('effect helpers', () => {
     expect(parseColor('nope')).toEqual([0, 0, 0, 1])
   })
 
-  it('every non-transition registry effect except glow has a shader module', () => {
-    const missing = effectsRegistry.effects
-      .filter((e) => e.category !== 'transition' && !EFFECT_MODULES.has(e.id))
-      .map((e) => e.id)
-    expect(missing).toEqual(['glow'])
+  it('every registry effect has a shader module', () => {
+    const missing = effectsRegistry.effects.filter((e) => !EFFECT_MODULES.has(e.id)).map((e) => e.id)
+    expect(missing).toEqual([])
     for (const id of EFFECT_MODULES.keys())
       expect(effectsRegistry.effects.some((e) => e.id === id)).toBe(true)
+  })
+
+  it('glow is multi-pass, single-pass modules expose one stage', () => {
+    expect(effectStages(EFFECT_MODULES.get('glow')!)).toHaveLength(3)
+    expect(effectStages(EFFECT_MODULES.get('shake')!)).toHaveLength(1)
+  })
+
+  it('transition travel: still at the edges, a whole-frame jump at the cut', () => {
+    expect(transitionTravel(0)).toBe(0)
+    expect(transitionTravel(1)).toBeCloseTo(0, 9)
+    expect(transitionTravel(0.4999)).toBeCloseTo(0.5, 3)
+    expect(transitionTravel(0.5)).toBeCloseTo(-0.5, 6)
+    // до стыка ускоряется, после — замедляется
+    expect(transitionTravel(0.25)).toBeLessThan(0.25)
+    expect(transitionTravel(0.75)).toBeGreaterThan(-0.25)
+    expect(zoomTransitionScale(0, 2)).toBe(1)
+    expect(zoomTransitionScale(0.5, 2)).toBe(2)
+    expect(zoomTransitionScale(1, 3)).toBe(1)
   })
 })
 

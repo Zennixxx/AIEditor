@@ -1,5 +1,6 @@
 // Геометрия таймлайна: время ↔ пиксели, раскладка дорожек, хит-тест. Без React и Canvas.
 import { itemEnd } from '@/model/clipTime'
+import type { LaneProp } from '@/model/keyframes'
 import { displayOrder } from '@/model/tracks'
 import type { Project, Track, TrackItem, TrackKind } from '@/shared/types.gen'
 
@@ -10,6 +11,14 @@ export const RULER_BASE_H = 28
 /** Вся «шапка» таймлайна: полоса секций + линейка. Всё, что выше этой границы, — область скраба. */
 export const RULER_H = SECTION_H + RULER_BASE_H
 export const TRACK_H: Record<TrackKind, number> = { video: 64, audio: 56, fx: 30 }
+/** Дорожка свойства (позиция/масштаб/поворот/непрозрачность) под видеодорожкой. */
+export const LANE_H = 18
+export const LANE_LABELS: Record<LaneProp, string> = {
+  position: 'Позиция (P)',
+  scale: 'Масштаб (Shift+S)',
+  rotation: 'Поворот (R)',
+  opacity: 'Непрозрачность (T)',
+}
 /** Зона трима у края элемента, px. */
 export const EDGE_PX = 6
 
@@ -35,17 +44,31 @@ export interface TrackRow {
   track: Track
   /** Верх дорожки в координатах содержимого (0 — под линейкой, без учёта scrollY). */
   top: number
+  /** Полная высота строки: элементы + дорожки свойств. */
   height: number
+  /** Высота полосы элементов (клипов/эффектов) — верхняя часть строки. */
+  itemHeight: number
+  /** Дорожки свойств под полосой элементов (только у видеодорожек). */
+  lanes: readonly LaneProp[]
   index: number
 }
 
-export function layoutTracks(p: Pick<Project, 'tracks'>): TrackRow[] {
+/** Раскладка дорожек; `lanes` — показанные дорожки свойств (P/S/R/T), они добавляются под каждой видеодорожкой. */
+export function layoutTracks(p: Pick<Project, 'tracks'>, lanes: readonly LaneProp[] = []): TrackRow[] {
   let top = 0
   return displayOrder(p).map((track, index) => {
-    const row = { track, top, height: TRACK_H[track.kind], index }
+    const itemHeight = TRACK_H[track.kind]
+    const own = track.kind === 'video' ? lanes : []
+    const row = { track, top, height: itemHeight + own.length * LANE_H, itemHeight, lanes: own, index }
     top += row.height
     return row
   })
+}
+
+/** Экранный y верха дорожки свойства `lane` строки (canvas-координаты); null — у строки её нет. */
+export function laneScreenTop(row: TrackRow, lane: LaneProp, v: Pick<View, 'scrollY'>): number | null {
+  const i = row.lanes.indexOf(lane)
+  return i < 0 ? null : rowScreenTop(row, v) + row.itemHeight + i * LANE_H
 }
 
 export function contentHeight(rows: readonly TrackRow[]): number {
@@ -71,6 +94,7 @@ export type Hit =
   | { area: 'ruler'; t: number }
   | { area: 'item'; row: TrackRow; item: TrackItem; zone: 'start' | 'end' | 'body'; t: number }
   | { area: 'track'; row: TrackRow; t: number }
+  | { area: 'lane'; row: TrackRow; lane: LaneProp; t: number }
   | { area: 'empty'; t: number }
 
 export function hitTest(rows: readonly TrackRow[], v: View, x: number, y: number): Hit {
@@ -78,6 +102,11 @@ export function hitTest(rows: readonly TrackRow[], v: View, x: number, y: number
   if (y < RULER_H) return { area: 'ruler', t }
   const row = rowAtY(rows, y, v)
   if (!row) return { area: 'empty', t }
+  const inRow = y - rowScreenTop(row, v)
+  if (inRow >= row.itemHeight) {
+    const lane = row.lanes[Math.floor((inRow - row.itemHeight) / LANE_H)]
+    return lane ? { area: 'lane', row, lane, t } : { area: 'track', row, t }
+  }
   for (const item of row.track.items) {
     const x0 = timeToX(item.start, v)
     const x1 = timeToX(itemEnd(item), v)

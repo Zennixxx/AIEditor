@@ -1,8 +1,8 @@
-// Свет: flicker, strobe, flash. Кадр в премультиплицированной альфе — цвет добавляется только там,
+// Свет: flicker, strobe, flash, glow. Кадр в премультиплицированной альфе — цвет добавляется только там,
 // где есть изображение слоя (на fx-дорожке аккумулятор непрозрачен).
 import { parseColor } from '../gl'
 import { lattice } from '../noise'
-import { num, str, type EffectModule } from './types'
+import { num, str, type EffectModule, type EffectStage } from './types'
 
 /** Яркость фликера в момент `tau`: меандр с частотой `rate`, смешанный со случайным уровнем по `randomness`. */
 export function flickerLevel(seed: number, tau: number, rate: number, randomness: number): number {
@@ -73,4 +73,61 @@ void main() {
   },
 }
 
-export const lightEffects = [flicker, strobe, flash]
+/** Отводов гаусса в одну сторону (проход — 2·N + 1 выборок). */
+export const GLOW_TAPS = 24
+
+/** Шаг гаусса по оси `axis` (0 — x, 1 — y): радиус `radius` px проекта — это ~3σ. */
+function gaussStage(axis: 0 | 1, finish: string): EffectStage {
+  return {
+    fragment: `
+uniform vec2 u_step; // uv-шаг между отводами
+uniform float u_gain;
+void main() {
+  vec4 acc = texture(u_tex, v_uv);
+  float wsum = 1.0;
+  for (int i = 1; i <= ${GLOW_TAPS}; i++) {
+    float x = float(i) / ${GLOW_TAPS}.0;
+    float w = exp(-4.5 * x * x);
+    acc += (texture(u_tex, v_uv + u_step * float(i)) + texture(u_tex, v_uv - u_step * float(i))) * w;
+    wsum += 2.0 * w;
+  }
+  vec4 blur = acc / wsum;
+  ${finish}
+}`,
+    uniforms({ pass, px, res }) {
+      const r = Math.max(1, num(pass.params, 'radius', 20) * px)
+      const step = r / GLOW_TAPS
+      return {
+        u_step: axis === 0 ? [step / res[0], 0] : [0, step / res[1]],
+        u_gain: num(pass.params, 'intensity', 1.2) * pass.intensity,
+      }
+    },
+  }
+}
+
+/** Свечение: выделение ярких мест → гаусс по x → гаусс по y + сложение с исходным кадром. */
+const glow: EffectModule = {
+  id: 'glow',
+  stages: [
+    {
+      fragment: `
+uniform float u_threshold;
+void main() {
+  vec4 c = texture(u_tex, v_uv);
+  vec3 rgb = unpremul(c);
+  float l = max(rgb.r, max(rgb.g, rgb.b));
+  float k = smoothstep(u_threshold, min(u_threshold + 0.25, 1.0001), l);
+  o_color = vec4(rgb * k * c.a, c.a);
+}`,
+      uniforms: ({ pass }) => ({ u_threshold: num(pass.params, 'threshold', 0.7) }),
+    },
+    gaussStage(0, 'o_color = blur;'),
+    gaussStage(
+      1,
+      `vec4 src = texture(u_src, v_uv);
+  o_color = vec4(min(src.rgb + blur.rgb * u_gain, vec3(src.a)), src.a);`,
+    ),
+  ],
+}
+
+export const lightEffects = [flicker, strobe, flash, glow]

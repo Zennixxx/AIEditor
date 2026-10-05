@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest'
+import { findClip } from '@/model/lookup'
 import { sampleProject } from '@/model/testUtils'
 import {
   followPlayhead,
   hitTest,
   itemsInRect,
+  LANE_H,
+  laneScreenTop,
   layoutTracks,
   RULER_H,
+  TRACK_H,
   timeToX,
   xToTime,
   type View,
 } from './geometry'
+import { hitKey, layoutKeys } from './keyLayout'
 import { rulerStep, rulerTicks } from './ruler'
 
 const view: View = { pxPerSec: 100, scrollX: 0, scrollY: 0, width: 1000, height: 400 }
@@ -25,6 +30,37 @@ describe('timeline geometry', () => {
     const rows = layoutTracks(sampleProject())
     expect(rows.map((r) => r.track.id)).toEqual(['trk_fx', 'trk_v2', 'trk_v1', 'trk_a1'])
     expect(rows[1]!.top).toBe(rows[0]!.height)
+  })
+
+  it('property lanes extend video rows only and are hit-tested below the clips', () => {
+    const rows = layoutTracks(sampleProject(), ['position', 'opacity'])
+    const v1 = rows.find((r) => r.track.id === 'trk_v1')!
+    expect(v1.itemHeight).toBe(TRACK_H.video)
+    expect(v1.height).toBe(TRACK_H.video + 2 * LANE_H)
+    expect(rows.find((r) => r.track.id === 'trk_fx')!.lanes).toEqual([])
+    const top = laneScreenTop(v1, 'opacity', view)!
+    expect(top).toBe(RULER_H + v1.top + TRACK_H.video + LANE_H)
+    const hit = hitTest(rows, view, 50, top + 4)
+    expect(hit.area === 'lane' && hit.lane).toBe('opacity')
+    // клип — только в полосе элементов
+    expect(hitTest(rows, view, 50, RULER_H + v1.top + 10).area).toBe('item')
+  })
+
+  it('lays out keyframes on lanes and hit-tests them', () => {
+    const p = sampleProject()
+    findClip(p, 'clp_b')!.clip.transform.scale = [
+      { t: 0.5, v: 1, ease: 'linear' },
+      { t: 1, v: 2, ease: 'hold' },
+    ]
+    const rows = layoutTracks(p, ['scale'])
+    const keys = layoutKeys(rows, view, [{ clipId: 'clp_b', lane: 'scale', t: 1 }])
+    expect(keys.map((k) => [k.x, k.ease, k.selected])).toEqual([
+      [250, 'linear', false],
+      [300, 'hold', true],
+    ])
+    expect(hitKey(keys, 303, keys[1]!.y)?.ref.t).toBe(1)
+    expect(hitKey(keys, 320, keys[1]!.y)).toBeNull()
+    expect(layoutKeys(layoutTracks(p), view, [])).toEqual([])
   })
 
   it('hit-tests ruler, item body, trim edges and empty track', () => {

@@ -1,11 +1,16 @@
 // Инструменты взаимодействия с таймлайном: скраб, выделение (клик/рамка), перемещение, трим, лезвие,
 // drop ассета из Media Bin, зум/скролл. Состояние жестов — здесь; проект меняется только через dispatch.
-import { dropEffect } from '@/app/actions'
+import { addTransitions, dropEffect, dropPreset } from '@/app/actions'
 import { planAssetDrop, planMove, planTrim, pickTrackForAsset, type ItemMove } from '@/model/edit'
 import type { EffectDropTarget } from '@/model/effects'
+import { planShiftKeys, sameKey, shiftedRefs, type KeyRef } from '@/model/clipKeys'
 import { isClip } from '@/model/lookup'
 import { isMarkerVisible, markerOrigins, planMoveMarkers, type MarkerOrigin } from '@/model/markers'
 import { timelineSections, type TimelineSection } from '@/model/sections'
+import { isTransition, nearestCut, planTransitions } from '@/model/transitions'
+import { presetSpan } from '@/model/presets'
+import { findPreset } from '@/store/presets'
+import { OpsError } from '@/model/ops/errors'
 import { assetClipDuration } from '@/model/project'
 import { getEffectDef } from '@/shared/effects-registry'
 import { collectSnapTargets, snapPoint, snapSpan, snapThreshold, type SnapTarget } from '@/model/snapping'
@@ -25,6 +30,7 @@ import {
   type TrackRow,
   type View,
 } from './geometry'
+import { hitKey, layoutKeys, type KeyView } from './keyLayout'
 import { hitMarker, layoutMarkers, markersInRect, type MarkerView } from './markerLayout'
 import { emptyOverlay, type Overlay } from './render'
 
@@ -84,8 +90,24 @@ type Gesture =
       /** Клик по уже выделенному маркеру без движения: выделить только его. */
       collapseTo: string | null
     }
+  | {
+      kind: 'keys'
+      downX: number
+      started: boolean
+      /** Проект в начале жеста: ops считаются от него с полной дельтой. */
+      base: Project
+      refs: KeyRef[]
+      /** Timeline time главного ключа в начале жеста. */
+      primaryT0: number
+      targets: SnapTarget[]
+      lastDelta: number
+      key: string
+      collapseTo: KeyRef | null
+    }
 
 const DRAG_THRESHOLD_PX = 3
+/** Переход «прилипает» к стыку не дальше этого расстояния от курсора, px. */
+const TRANSITION_SNAP_PX = 150
 let gestureSeq = 0
 
 export interface ControllerHost {
@@ -97,7 +119,8 @@ export interface ControllerHost {
 export class TimelineController {
   overlay: Overlay = emptyOverlay()
   private gesture: Gesture | null = null
-  private rowsCache: { project: Project; rows: TrackRow[] } | null = null
+  private rowsCache: { project: Project; lanes: readonly unknown[]; rows: TrackRow[] } | null = null
+  private keyCache: { key: readonly unknown[]; value: KeyView[] } | null = null
   private dropTargets: SnapTarget[] | null = null
   private markerCache: { key: readonly unknown[]; value: MarkerView[] } | null = null
   private sectionCache: { project: Project; value: TimelineSection[] } | null = null
@@ -112,8 +135,24 @@ export class TimelineController {
 
   rows(): TrackRow[] {
     const project = useProject.getState().project
-    if (this.rowsCache?.project !== project) this.rowsCache = { project, rows: layoutTracks(project) }
+    const lanes = useUi.getState().propLanes
+    if (this.rowsCache?.project !== project || this.rowsCache.lanes !== lanes)
+      this.rowsCache = { project, lanes, rows: layoutTracks(project, lanes) }
     return this.rowsCache.rows
+  }
+
+  /** Ключевые кадры на дорожках свойств в экранных координатах (кэш по раскладке, виду и выделению). */
+  keys(): KeyView[] {
+    const rows = this.rows()
+    if (!rows.some((r) => r.lanes.length > 0)) return []
+    const v = this.view()
+    const sel = useUi.getState().keySelection
+    const key = [rows, v.pxPerSec, v.scrollX, v.scrollY, v.width, v.height, sel]
+    const c = this.keyCache
+    if (c && c.key.every((k, i) => k === key[i])) return c.value
+    const value = layoutKeys(rows, v, sel)
+    this.keyCache = { key, value }
+    return value
   }
 
   private snapOpts(shift: boolean) {
@@ -175,6 +214,11 @@ export class TimelineController {
     const hit = hitTest(rows, v, p.x, p.y)
     const ui = useUi.getState()
     const fps = useProject.getState().project.fps
+
+    // ключевые кадры на дорожках свойств
+    const key = hitKey(this.keys(), p.x, p.y)
+    if (key) return this.pointerDownKey(key, p)
+    if (!p.ctrl && !p.shift && ui.keySelection.length > 0) ui.selectKeys([])
 
     // маркеры - над всем остальным (в том числе над линейкой)
     const marker = hitMarker(this.markers(), p.x, p.y)
@@ -248,7 +292,7 @@ export class TimelineController {
       return true
     }
 
-    if (hit.area === 'track' || hit.area === 'empty' || hit.area === 'item') {
+    if (hit.area === 'track' || hit.area === 'lane' || hit.area === 'empty' || hit.area === 'item') {
       const base = p.ctrl || p.shift ? ui.selection : []
       if (!p.ctrl && !p.shift) ui.select([])
       this.gesture = { kind: 'box', x0: p.x, y0: p.y, base }
@@ -290,8 +334,63 @@ export class TimelineController {
     return true
   }
 
-  /** Двойной клик по маркеру: редактирование label/цвета в инспекторе. */
+  private pointerDownKey(k: KeyView, p: PointerInfo): boolean {
+    const ui = useUi.getState()
+    let selection = ui.keySelection
+    let collapseTo: KeyRef | null = null
+    const has = selection.some((s) => sameKey(s, k.ref))
+    if (p.ctrl || p.shift) {
+      selection = has ? selection.filter((s) => !sameKey(s, k.ref)) : [...selection, k.ref]
+      ui.selectKeys(selection)
+      if (has) return true
+    } else if (!has) {
+      selection = [k.ref]
+      ui.selectKeys(selection)
+    } else {
+      collapseTo = k.ref
+    }
+    // клип ключа становится выделенным (инспектор показывает его свойства)
+    if (!ui.selection.includes(k.ref.clipId)) ui.select([k.ref.clipId])
+    this.gesture = {
+      kind: 'keys',
+      downX: p.x,
+      started: false,
+      base: useProject.getState().project,
+      refs: selection,
+      primaryT0: k.clip.start + k.ref.t,
+      targets: this.targets([]),
+      lastDelta: 0,
+      key: `keys:${++gestureSeq}`,
+      collapseTo,
+    }
+    return true
+  }
+
+  private dragKeys(g: Extract<Gesture, { kind: 'keys' }>, p: PointerInfo, v: View): void {
+    if (!g.started) {
+      if (Math.abs(p.x - g.downX) < DRAG_THRESHOLD_PX) return
+      g.started = true
+    }
+    const raw = g.primaryT0 + (p.x - g.downX) / v.pxPerSec
+    const snapped = snapPoint(raw, g.targets, this.snapOpts(p.shift))
+    this.overlay.snapAt = snapped.snappedAt
+    const delta = snapped.value - g.primaryT0
+    if (Math.abs(delta - g.lastDelta) > 1e-9) {
+      g.lastDelta = delta
+      const ops = planShiftKeys(g.base, g.refs, delta)
+      useProject.getState().dispatch(ops, { label: 'Переместить ключи', mergeKey: g.key })
+      useUi.getState().selectKeys(shiftedRefs(g.base, g.refs, delta))
+    }
+    this.host.redraw()
+  }
+
+  /** Двойной клик по маркеру: редактирование label/цвета в инспекторе; по ключу — плейхед на ключ. */
   doubleClick(p: PointerInfo): boolean {
+    const key = hitKey(this.keys(), p.x, p.y)
+    if (key) {
+      useUi.getState().setPlayhead(key.clip.start + key.ref.t)
+      return true
+    }
     const m = hitMarker(this.markers(), p.x, p.y)
     if (!m) return false
     useUi.getState().selectMarkers([m.id])
@@ -348,6 +447,8 @@ export class TimelineController {
       }
       case 'marker':
         return this.dragMarker(g, p, v)
+      case 'keys':
+        return this.dragKeys(g, p, v)
     }
   }
 
@@ -418,6 +519,10 @@ export class TimelineController {
       if (g.started) useProject.getState().sealHistory()
       else if (g.collapseTo) useUi.getState().selectMarkers([g.collapseTo])
     }
+    if (g.kind === 'keys') {
+      if (g.started) useProject.getState().sealHistory()
+      else if (g.collapseTo) useUi.getState().selectKeys([g.collapseTo])
+    }
     if (g.kind === 'move') {
       if (g.started && g.moves) {
         const ops = planMove(useProject.getState().project, g.moves, { rippleInsert: p.alt })
@@ -431,7 +536,8 @@ export class TimelineController {
   }
 
   cancel(): void {
-    if (this.gesture?.kind === 'trim' || (this.gesture?.kind === 'marker' && this.gesture.started))
+    const g = this.gesture
+    if (g?.kind === 'trim' || ((g?.kind === 'marker' || g?.kind === 'keys') && g.started))
       useProject.getState().sealHistory()
     this.gesture = null
     this.overlay = emptyOverlay()
@@ -443,7 +549,7 @@ export class TimelineController {
     const hit = hitTest(this.rows(), v, p.x, p.y)
     const tool = useUi.getState().tool
     let cursor = 'default'
-    if (hitMarker(this.markers(), p.x, p.y)) cursor = 'pointer'
+    if (hitKey(this.keys(), p.x, p.y) || hitMarker(this.markers(), p.x, p.y)) cursor = 'pointer'
     else if (hit.area === 'ruler') cursor = 'text'
     else if (tool === 'blade' && hit.area === 'item') cursor = 'crosshair'
     else if (hit.area === 'item' && !hit.row.track.locked) cursor = hit.zone === 'body' ? 'grab' : 'ew-resize'
@@ -536,9 +642,8 @@ export class TimelineController {
 
   // --- drop эффекта из библиотеки ---
 
-  private effectDropPlan(x: number, y: number, effectId: string, shift: boolean) {
-    const def = getEffectDef(effectId)
-    if (!def) return null
+  /** Куда ляжет эффект/пресет, брошенный в точку (x, y): клип видеодорожки, fx-дорожка или новая fx-дорожка. */
+  private effectTargetAt(x: number, y: number, shift: boolean) {
     const v = this.view()
     this.dropTargets ??= this.targets([])
     const snapped = snapPoint(Math.max(0, xToTime(x, v)), this.dropTargets, this.snapOpts(shift))
@@ -552,10 +657,50 @@ export class TimelineController {
       target = { trackId: hit.row.track.id }
       trackId = hit.row.track.id
     }
-    return { def, target, trackId, t: snapped.value, snapAt: snapped.snappedAt }
+    return { target, trackId, t: snapped.value, snapAt: snapped.snappedAt }
+  }
+
+  private effectDropPlan(x: number, y: number, effectId: string, shift: boolean) {
+    const def = getEffectDef(effectId)
+    if (!def) return null
+    return { def, ...this.effectTargetAt(x, y, shift) }
+  }
+
+  /** Бросок перехода: ближайший стык (не дальше TRANSITION_SNAP_PX) на видеодорожке под курсором или на любой. */
+  private transitionDropPlan(x: number, y: number, effectId: string) {
+    const def = getEffectDef(effectId)
+    if (!def) return null
+    const v = this.view()
+    const project = useProject.getState().project
+    const row = rowAtY(this.rows(), y, v)
+    const cut = nearestCut(
+      project,
+      xToTime(x, v),
+      TRANSITION_SNAP_PX / v.pxPerSec,
+      row?.track.kind === 'video' ? row.track.id : undefined,
+    )
+    if (!cut) return null
+    try {
+      const target = planTransitions(project, effectId, [cut]).targets[0]!
+      return { def, cut, span: target.spans[0]!, trackId: target.fxTrackId ?? target.videoTrackId }
+    } catch (e) {
+      if (e instanceof OpsError) return null
+      throw e
+    }
   }
 
   effectDragOver(x: number, y: number, effectId: string, shift: boolean): boolean {
+    if (isTransition(effectId)) {
+      const tp = this.transitionDropPlan(x, y, effectId)
+      if (!tp) {
+        if (this.overlay.dropGhost) this.dragLeave()
+        return false
+      }
+      this.overlay.dropGhost = { ...tp.span, trackId: tp.trackId, label: tp.def.name }
+      this.overlay.snapAt = tp.cut.t
+      this.host.redraw()
+      return true
+    }
     const plan = this.effectDropPlan(x, y, effectId, shift)
     if (!plan) return false
     this.overlay.dropGhost = {
@@ -570,9 +715,38 @@ export class TimelineController {
   }
 
   effectDrop(x: number, y: number, effectId: string, shift: boolean): void {
+    if (isTransition(effectId)) {
+      const tp = this.transitionDropPlan(x, y, effectId)
+      this.dragLeave()
+      if (tp) addTransitions(effectId, [tp.cut])
+      return
+    }
     const plan = this.effectDropPlan(x, y, effectId, shift)
     this.dragLeave()
     if (plan) dropEffect(effectId, plan.target, plan.t)
+  }
+
+  // --- drop пресета-комбо ---
+
+  presetDragOver(x: number, y: number, presetId: string, shift: boolean): boolean {
+    const preset = findPreset(presetId)
+    if (!preset) return false
+    const plan = this.effectTargetAt(x, y, shift)
+    this.overlay.dropGhost = {
+      start: plan.t,
+      duration: presetSpan(preset),
+      trackId: plan.trackId,
+      label: preset.name,
+    }
+    this.overlay.snapAt = plan.snapAt
+    this.host.redraw()
+    return true
+  }
+
+  presetDrop(x: number, y: number, presetId: string, shift: boolean): void {
+    const plan = this.effectTargetAt(x, y, shift)
+    this.dragLeave()
+    dropPreset(presetId, plan.target, plan.t)
   }
 
   dragLeave(): void {

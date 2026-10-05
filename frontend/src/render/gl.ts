@@ -19,6 +19,7 @@ precision highp float;
 in vec2 v_uv;
 out vec4 o_color;
 uniform sampler2D u_tex;
+uniform sampler2D u_src;   // исходный кадр эффекта (для многопроходных; у однопроходных = u_tex)
 uniform vec2 u_res;        // размер цели, px
 uniform float u_intensity; // огибающая × strength (CONTRACT §2.1)
 uniform float u_time;      // сек от начала эффекта

@@ -1,11 +1,24 @@
 // Отрисовка таймлайна в Canvas 2D. Чистая функция от состояния: draw(ctx, scene).
 import { EPS, itemEnd, sourceAtTimeline } from '@/model/clipTime'
+import { clipKeyTimes } from '@/model/clipKeys'
+import { clipAnimatable, evaluateAnimatable, isAnimated, LANE_FIELDS, type LaneProp } from '@/model/keyframes'
 import { isClip } from '@/model/lookup'
 import { getEffectDef } from '@/shared/effects-registry'
-import type { Asset, Clip, Project, Thumbs, TrackItem, Waveform } from '@/shared/types.gen'
+import type { Asset, Clip, Ease, Project, Thumbs, TrackItem, Waveform } from '@/shared/types.gen'
 import { SECTION_COLORS } from '@/model/markers'
 import type { TimelineSection } from '@/model/sections'
-import { RULER_H, SECTION_H, rowScreenTop, timeToX, xToTime, type TrackRow, type View } from './geometry'
+import {
+  LANE_H,
+  laneScreenTop,
+  RULER_H,
+  SECTION_H,
+  rowScreenTop,
+  timeToX,
+  xToTime,
+  type TrackRow,
+  type View,
+} from './geometry'
+import type { KeyView } from './keyLayout'
 import type { MarkerView } from './markerLayout'
 import { rulerTicks } from './ruler'
 
@@ -86,6 +99,8 @@ export interface Scene {
   markers: readonly MarkerView[]
   /** Секции композиции и музыки в timeline time. */
   sections: readonly TimelineSection[]
+  /** Ключевые кадры на дорожках свойств в экранных координатах. */
+  keys: readonly KeyView[]
   media: MediaSource
   palette: Palette
 }
@@ -121,19 +136,21 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
       (s.solo.length > 0 && row.track.kind === 'audio' && !s.solo.includes(row.track.id))
     for (const item of row.track.items) {
       if (itemEnd(item) < t0 || item.start > t1) continue
-      drawItem(ctx, s, item, item.start, top, row.height, {
+      drawItem(ctx, s, item, item.start, top, row.itemHeight, {
         selected: s.selection.has(item.id),
         dim: dim || moving.has(item.id),
         ghost: false,
         locked: row.track.locked,
       })
     }
+    if (row.lanes.length > 0) drawLanes(ctx, s, row, t0, t1)
   }
+  drawKeys(ctx, s.keys, c)
   // призраки перемещения
   for (const g of s.overlay.ghosts) {
     const row = s.rows.find((r) => r.track.id === g.trackId)
     if (!row) continue
-    drawItem(ctx, s, g.item, g.start, rowScreenTop(row, v), row.height, {
+    drawItem(ctx, s, g.item, g.start, rowScreenTop(row, v), row.itemHeight, {
       selected: true,
       dim: false,
       ghost: true,
@@ -149,7 +166,7 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
       : RULER_H +
         (s.rows.length ? s.rows[s.rows.length - 1]!.top + s.rows[s.rows.length - 1]!.height : 0) -
         v.scrollY
-    const h = row ? row.height : 40
+    const h = row ? row.itemHeight : 40
     const x0 = timeToX(dg.start, v)
     const w = dg.duration * v.pxPerSec
     ctx.fillStyle = 'rgba(139,108,255,0.25)'
@@ -413,6 +430,19 @@ function drawItem(
     ctx.fillStyle = c.snap
     ctx.fillText(tag, vx1 - tw + 5, y + 8)
   }
+  // ключевые кадры transform/opacity — ромбики у нижнего края клипа
+  if (isClip(item) && !st.ghost) {
+    const keyY = y + h - 6
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+    for (const t of clipKeyTimes(item)) {
+      const kx = timeToX(start + t, v)
+      if (kx < vx0 - 4 || kx > vx1 + 4) continue
+      diamond(ctx, kx, keyY, 3.5)
+      ctx.fill()
+      ctx.stroke()
+    }
+  }
   ctx.restore()
   ctx.lineWidth = st.selected ? 2 : 1
   ctx.strokeStyle = st.invalid ? c.playhead : st.selected ? '#ffffff' : 'rgba(0,0,0,0.5)'
@@ -489,5 +519,102 @@ function drawWaveform(
     const top = mid - (hi / 128) * amp
     const bot = mid - (lo / 128) * amp
     ctx.fillRect(x, top, 1, Math.max(1, bot - top))
+  }
+}
+
+function diamond(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.beginPath()
+  ctx.moveTo(x, y - r)
+  ctx.lineTo(x + r, y)
+  ctx.lineTo(x, y + r)
+  ctx.lineTo(x - r, y)
+  ctx.closePath()
+}
+
+const LANE_COLORS: Record<string, string> = {
+  x: '#ff8a5c',
+  y: '#5cc8ff',
+  scale: '#b98cff',
+  rotation: '#6fe0a0',
+  opacity: '#ffd84d',
+}
+
+/** Дорожки свойств под видеодорожкой: фон, полоса клипа, кривая значения (нормированная по клипу). */
+function drawLanes(ctx: CanvasRenderingContext2D, s: Scene, row: TrackRow, t0: number, t1: number): void {
+  const { view: v, palette: c } = s
+  for (const lane of row.lanes) {
+    const top = laneScreenTop(row, lane, v)!
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'
+    ctx.fillRect(0, top, v.width, LANE_H)
+    ctx.fillStyle = c.border
+    ctx.fillRect(0, top + LANE_H - 1, v.width, 1)
+    for (const item of row.track.items) {
+      if (!isClip(item) || itemEnd(item) < t0 || item.start > t1) continue
+      const x0 = Math.max(timeToX(item.start, v), -2)
+      const x1 = Math.min(timeToX(itemEnd(item), v), v.width + 2)
+      if (x1 <= x0) continue
+      ctx.fillStyle = s.selection.has(item.id) ? 'rgba(139,108,255,0.16)' : 'rgba(255,255,255,0.05)'
+      ctx.fillRect(x0, top + 1, x1 - x0, LANE_H - 2)
+      drawLaneCurve(ctx, s, item, lane, x0, x1, top)
+    }
+  }
+}
+
+function drawLaneCurve(
+  ctx: CanvasRenderingContext2D,
+  s: Scene,
+  clip: Clip,
+  lane: LaneProp,
+  x0: number,
+  x1: number,
+  top: number,
+): void {
+  const v = s.view
+  for (const field of LANE_FIELDS[lane]) {
+    const a = clipAnimatable(clip, field)
+    if (!isAnimated(a) || a.length < 2) continue
+    let lo = Infinity
+    let hi = -Infinity
+    for (const k of a) {
+      lo = Math.min(lo, k.v)
+      hi = Math.max(hi, k.v)
+    }
+    if (hi - lo < 1e-9) continue
+    ctx.strokeStyle = LANE_COLORS[field]!
+    ctx.globalAlpha = 0.7
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let x = x0; x <= x1; x += 3) {
+      const val = evaluateAnimatable(a, xToTime(x, v) - clip.start)
+      const y = top + LANE_H - 3 - ((val - lo) / (hi - lo)) * (LANE_H - 6)
+      if (x === x0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+}
+
+/** Форма ключа по интерполяции: ромб — linear, квадрат — hold, круг — плавные (как в AE). */
+function keyShape(ctx: CanvasRenderingContext2D, x: number, y: number, ease: Ease): void {
+  if (ease === 'hold') {
+    ctx.beginPath()
+    ctx.rect(x - 3.5, y - 3.5, 7, 7)
+  } else if (ease === 'linear') {
+    diamond(ctx, x, y, 5)
+  } else {
+    ctx.beginPath()
+    ctx.arc(x, y, 4, 0, Math.PI * 2)
+  }
+}
+
+function drawKeys(ctx: CanvasRenderingContext2D, keys: readonly KeyView[], c: Palette): void {
+  for (const k of keys) {
+    keyShape(ctx, k.x, k.y, k.ease)
+    ctx.fillStyle = k.selected ? c.snap : '#d8dbe4'
+    ctx.fill()
+    ctx.strokeStyle = k.selected ? '#ffffff' : 'rgba(0,0,0,0.7)'
+    ctx.lineWidth = 1
+    ctx.stroke()
   }
 }

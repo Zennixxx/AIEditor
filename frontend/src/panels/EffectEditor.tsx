@@ -1,7 +1,6 @@
 import * as actions from '@/app/actions'
 import { envelopeAt } from '@/model/envelope'
 import { findEffect, findMarker } from '@/model/lookup'
-import { hasRenderer } from '@/render/effects'
 import { CATEGORY_LABELS, getEffectDef, resolveParams } from '@/shared/effects-registry'
 import type { EffectItem, EffectParamDef, Envelope, Project } from '@/shared/types.gen'
 import { useProject } from '@/store/project'
@@ -200,9 +199,6 @@ export function EffectEditor({ effectId }: { effectId: string }) {
       <h3 className={styles.heading}>
         {def.name} <span className={styles.dimText}>· {CATEGORY_LABELS[def.category]}</span>
       </h3>
-      {!hasRenderer(def.id) && (
-        <div className={styles.hint}>Шейдер этого эффекта — в следующей фазе, в превью он не виден.</div>
-      )}
       <div className={styles.inlineRow}>
         <label className={styles.check}>
           <input

@@ -278,3 +278,127 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.animRow {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 64px auto;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-radius: 3px;
+}
+
+.animRow[data-focused] {
+  background: var(--panel-2);
+}
+
+.animRow input[type='number'] {
+  width: 64px;
+}
+
+.stopwatch {
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.stopwatch[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  filter: none;
+  opacity: 1;
+}
+
+.hotText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: ew-resize;
+  text-decoration: underline dotted var(--text-faint);
+  text-underline-offset: 3px;
+}
+
+.keyNav {
+  display: flex;
+  align-items: center;
+}
+
+.keyButton {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 10px;
+  line-height: 1;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.keyButton[data-on] {
+  color: var(--snap, #ffd84d);
+}
+
+.keyButton:hover {
+  background: var(--panel-3);
+}
+
+.easeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.easeRow .small[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.easeRow .small:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.keyGraph {
+  width: 100%;
+  height: 64px;
+  border-radius: 3px;
+  background: var(--bg);
+}
+
+.keyGraph polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.keyGraphPlayhead {
+  stroke: var(--playhead, #ff4d5e);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.keyGraphKey {
+  fill: #d8dbe4;
+  stroke: #000;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.keyGraphKey[data-on] {
+  fill: var(--snap, #ffd84d);
+}

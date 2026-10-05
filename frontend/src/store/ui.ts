@@ -1,6 +1,8 @@
 // Состояние интерфейса (не часть проекта, не попадает в историю): выделение, плейхед, зум, инструменты.
 import { create } from 'zustand'
+import type { KeyRef } from '@/model/clipKeys'
 import type { ClipboardEntry } from '@/model/edit'
+import { LANE_PROPS, type LaneProp } from '@/model/keyframes'
 import { DEFAULT_VISIBILITY, type MarkerVisibility } from '@/model/markers'
 
 export type Tool = 'select' | 'blade'
@@ -42,8 +44,14 @@ interface UiState {
   fxDialog: { effect: string } | null
   /** Эффект, который сейчас тащат из библиотеки эффектов. */
   draggingEffect: string | null
+  /** Пресет-комбо, который сейчас тащат из библиотеки. */
+  draggingPreset: string | null
   /** Эффект клипа, раскрытый в инспекторе. */
   inspectedEffectId: string | null
+  /** Показанные дорожки свойств под видеодорожками (P/S/R/T), в порядке LANE_PROPS. */
+  propLanes: LaneProp[]
+  /** Выделенные ключевые кадры на дорожках свойств. */
+  keySelection: KeyRef[]
 
   select: (ids: string[]) => void
   selectMarkers: (ids: string[]) => void
@@ -62,7 +70,11 @@ interface UiState {
   setCutDialogOpen: (open: boolean) => void
   openFxDialog: (effect: string | null) => void
   setDraggingEffect: (effect: string | null) => void
+  setDraggingPreset: (presetId: string | null) => void
   inspectEffect: (id: string | null) => void
+  toggleLane: (lane: LaneProp) => void
+  setLanes: (lanes: readonly LaneProp[]) => void
+  selectKeys: (refs: KeyRef[]) => void
 }
 
 export function clampZoom(pxPerSec: number): number {
@@ -89,7 +101,10 @@ export const useUi = create<UiState>()((set, get) => ({
   cutDialogOpen: false,
   fxDialog: null,
   draggingEffect: null,
+  draggingPreset: null,
   inspectedEffectId: null,
+  propLanes: [],
+  keySelection: [],
 
   select: (ids) => set({ selection: [...new Set(ids)] }),
   selectMarkers: (ids) => set({ markerSelection: [...new Set(ids)] }),
@@ -114,5 +129,12 @@ export const useUi = create<UiState>()((set, get) => ({
   setCutDialogOpen: (cutDialogOpen) => set({ cutDialogOpen }),
   openFxDialog: (effect) => set({ fxDialog: effect === null ? null : { effect } }),
   setDraggingEffect: (draggingEffect) => set({ draggingEffect }),
+  setDraggingPreset: (draggingPreset) => set({ draggingPreset }),
   inspectEffect: (inspectedEffectId) => set({ inspectedEffectId }),
+  toggleLane: (lane) => {
+    const on = get().propLanes.includes(lane)
+    get().setLanes(on ? get().propLanes.filter((l) => l !== lane) : [...get().propLanes, lane])
+  },
+  setLanes: (lanes) => set({ propLanes: LANE_PROPS.filter((l) => lanes.includes(l)) }),
+  selectKeys: (keySelection) => set({ keySelection }),
 }))
