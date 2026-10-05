@@ -13,8 +13,11 @@ from app.config import VERSION, Settings, ffmpeg_bin, get_settings, rife_bin
 from app.errors import install_error_handlers
 from app.jobs.events import EventHub
 from app.jobs.manager import RESOURCE_LIMITS, JobManager
-from app.routers import debug, health, jobs, ws
+from app.media.pipeline import MediaService
+from app.routers import assets, debug, health, jobs, projects, ws
+from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
+from app.storage.projects_repo import ProjectsRepo
 
 log = logging.getLogger("app")
 
@@ -45,6 +48,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.paths = paths
         app.state.hub = hub
         app.state.jobs = JobManager(hub, executor)
+        app.state.assets = AssetsRepo(paths)
+        app.state.assets.load_all()
+        app.state.projects = ProjectsRepo(paths)
+        app.state.media = MediaService(settings, paths, app.state.assets, app.state.jobs, hub)
         log.info(
             "AIEditor backend %s, data=%s, ffmpeg=%s, rife=%s",
             VERSION,
@@ -52,9 +59,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ffmpeg_bin(settings),
             rife_bin(settings),
         )
+        await app.state.media.resume()
         try:
             yield
         finally:
+            await app.state.media.shutdown()
             await app.state.jobs.shutdown()
             executor.shutdown(wait=False, cancel_futures=True)
 
@@ -71,6 +80,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api = APIRouter(prefix="/api")
     api.include_router(health.router)
     api.include_router(jobs.router)
+    api.include_router(assets.router)
+    api.include_router(projects.router)
     api.include_router(ws.router)
     if settings.aieditor_debug:
         api.include_router(debug.router)

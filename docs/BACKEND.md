@@ -58,24 +58,31 @@ data/presets.json
 
 ## Фаза 1 — Медиа
 
-- [ ] `/assets/import` (пути) и `/assets/upload` (multipart, стриминг на диск). ID по CONTRACT §1; повторный импорт того же файла возвращает существующий ассет.
-- [ ] ffprobe → `Asset` (kind, duration, width/height, fps из `r_frame_rate`, codec, hasAudio, rotation-метаданные учесть в width/height).
-- [ ] `browserDecodable`: true для h264 (8-bit, yuv420p), vp9, av1; hevc — true (Windows с расширением HEVC), но mezzanine всё равно делать при 10-bit; prores/dnxhd/прочее — false.
-- [ ] Цепочка задач после импорта видео: proxy → thumbs → waveform (если есть звук) → mezzanine (если нужно). Для аудио: audio.m4a → waveform.
+- [x] `/assets/import` (пути) и `/assets/upload` (multipart, стриминг на диск). ID по CONTRACT §1; повторный импорт того же файла возвращает существующий ассет.
+- [x] ffprobe → `Asset` (kind, duration, width/height, fps из `r_frame_rate`, codec, hasAudio, rotation-метаданные учесть в width/height).
+- [x] `browserDecodable`: true для h264 (8-bit, yuv420p), vp9, av1; hevc — true (Windows с расширением HEVC), но mezzanine всё равно делать при 10-bit; prores/dnxhd/прочее — false.
+- [x] Цепочка задач после импорта видео: proxy → thumbs → waveform (если есть звук) → mezzanine (если нужно). Для аудио: audio.m4a → waveform.
   - proxy: `-vf scale=-2:720 -c:v libx264 -preset veryfast -crf 23 -g 10 -bf 0 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart`; для VFR-исходников `-fps_mode cfr -r <round(fps)>`.
   - thumbs: 1 кадр/с (≤ 600 шт; для длинных — шаг больше), тайл 160×90, атласы 10×10 JPG q=80.
   - waveform: моно 22050 Гц, пики min/max на 256 сэмплов, int8.
   - mezzanine: полное разрешение, `-crf 16 -preset medium -pix_fmt yuv420p`.
-- [ ] Прогресс ffmpeg из `-progress pipe:1` (out_time_us / duration).
-- [ ] Отдача файлов с Range (`206 Partial Content`), корректные `Content-Type`, `Accept-Ranges`.
-- [ ] Событие WS `asset` при каждом новом производном файле.
-- [ ] Тесты: импорт сгенерированного 5-секундного видео (lavfi testsrc + sine), все производные созданы, Range-запрос отдаёт 206.
+- [x] Прогресс ffmpeg из `-progress pipe:1` (out_time_us / duration).
+- [x] Отдача файлов с Range (`206 Partial Content`), корректные `Content-Type`, `Accept-Ranges`.
+- [x] Событие WS `asset` при каждом новом производном файле.
+- [x] Тесты: импорт сгенерированного 5-секундного видео (lavfi testsrc + sine), все производные созданы, Range-запрос отдаёт 206.
 
 ### 1.x Проекты (CONTRACT §8–9)
-- [ ] `storage/atomic.py`: запись tmp + `os.replace`; `storage/projects_repo.py`.
-- [ ] `GET /projects` (`{id,name,updatedAt}[]`, сортировка по `updatedAt` desc), `POST /projects` (`{name,fps,width,height}` → пустой `Project` с `revision: 0`), `GET /projects/{id}` (404 `project_not_found`).
-- [ ] `PUT /projects/{id}`: тело валидируется по схеме; `revision` в теле ≠ текущему → 409 `revision_conflict` (в `details` — текущий `revision`); иначе `revision+1`, `updatedAt` = сейчас, атомарная запись, предыдущая версия → `data/projects/{id}.history/{revision}.json`, хранить 20 последних.
-- [ ] Тесты: создание → чтение → сохранение (revision растёт) → 409 при устаревшем revision → история обрезается до 20; ответ совпадает по форме с `shared/fixtures/project.json`.
+- [x] `storage/atomic.py`: запись tmp + `os.replace`; `storage/projects_repo.py`.
+- [x] `GET /projects` (`{id,name,updatedAt}[]`, сортировка по `updatedAt` desc), `POST /projects` (`{name,fps,width,height}` → пустой `Project` с `revision: 0`), `GET /projects/{id}` (404 `project_not_found`).
+- [x] `PUT /projects/{id}`: тело валидируется по схеме; `revision` в теле ≠ текущему → 409 `revision_conflict` (в `details` — текущий `revision`); иначе `revision+1`, `updatedAt` = сейчас, атомарная запись, предыдущая версия → `data/projects/{id}.history/{revision}.json`, хранить 20 последних.
+- [x] Тесты: создание → чтение → сохранение (revision растёт) → 409 при устаревшем revision → история обрезается до 20; ответ совпадает по форме с `shared/fixtures/project.json`.
+
+✅ Фаза 1 закрыта 2026-10-05: pytest/ruff/pyright зелёные (медиа-тесты требуют ffmpeg: `tools/bin`, `FFMPEG_PATH`/`FFPROBE_PATH` или PATH, иначе skip). Детали реализации:
+- `media/ffmpeg.py` — `subprocess.Popen` + потоки, а не `asyncio.subprocess`: uvicorn с `--reload` на Windows работает на SelectorEventLoop. Отмена корутины убивает процесс.
+- `JobManager.submit(depends_on=[…])`: шаги цепочки ждут предыдущий, не занимая слот ресурса; ошибка шага не роняет следующий (вход берётся из оригинала). Статус ассета `ready`/`failed` выставляет сторож после всех шагов (+ WS `asset`); прерванный импорт продолжается при старте.
+- audio.m4a: у видео со звуком создаётся в задаче `waveform`, у аудио — в задаче kind `proxy` (отдельного JobKind нет, см. CONTRACT_CHANGES).
+- `/assets/upload` принимает поля `files[]` и `files`; файл кладётся в `data/uploads/{sha1[:16]}/{имя}` — повторная загрузка того же содержимого даёт тот же ассет.
+- Проекты: `PUT` с `id` в теле ≠ пути → 400 `project_id_mismatch`; `createdAt` хранит сервер.
 
 ## Фаза 2 — Анализ музыки
 

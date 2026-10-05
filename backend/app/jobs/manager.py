@@ -12,7 +12,7 @@ import logging
 import secrets
 import time
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from concurrent.futures import Executor
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -100,7 +100,13 @@ class JobManager:
         asset_id: str | None = None,
         resource: Resource = "light",
         message: str | None = None,
+        depends_on: Sequence[str] = (),
     ) -> Job:
+        """Поставить задачу в очередь.
+
+        `depends_on` — задачи, которые должны завершиться (с любым статусом) до старта;
+        пока они идут, задача остаётся `queued` и не занимает слот ресурса.
+        """
         now = _now()
         job = Job(
             id=new_job_id(),
@@ -116,7 +122,9 @@ class JobManager:
         self._jobs[job.id] = job
         self._trim()
         self.emit(job)
-        self._tasks[job.id] = asyncio.create_task(self._run(job.id, fn, resource), name=job.id)
+        self._tasks[job.id] = asyncio.create_task(
+            self._run(job.id, fn, resource, tuple(depends_on)), name=job.id
+        )
         return job
 
     def cancel(self, job_id: str) -> Job | None:
@@ -130,22 +138,24 @@ class JobManager:
             self._finish(job, "canceled")
         return job
 
-    async def wait(self, job_id: str) -> Job:
+    async def wait(self, job_id: str) -> Job | None:
+        """Дождаться завершения задачи. Отмена ожидающего не отменяет саму задачу."""
         task = self._tasks.get(job_id)
         if task is not None:
-            await asyncio.gather(task, return_exceptions=True)
-        job = self._jobs[job_id]
-        return job
+            await asyncio.wait([task])
+        return self._jobs.get(job_id)
 
     async def shutdown(self) -> None:
         for task in list(self._tasks.values()):
             task.cancel()
         await asyncio.gather(*self._tasks.values(), return_exceptions=True)
 
-    async def _run(self, job_id: str, fn: JobFn, resource: Resource) -> None:
+    async def _run(self, job_id: str, fn: JobFn, resource: Resource, depends_on: tuple[str, ...]) -> None:
         job = self._jobs[job_id]
         ctx = JobContext(self, job_id)
         try:
+            for dep in depends_on:
+                await self.wait(dep)
             async with self._sems[resource]:
                 job.status = "running"
                 job.updated_at = _now()
