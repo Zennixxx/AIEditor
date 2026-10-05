@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import importlib.util
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
-from app.config import SCHEMA_VERSION, VERSION, ffmpeg_bin, ffprobe_bin, get_settings, rife_bin
+from app.config import SCHEMA_VERSION, VERSION, Settings, ffmpeg_bin, ffprobe_bin, rife_bin
 from app.models.gen import Health
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health", response_model=Health, response_model_by_alias=True)
-async def health() -> Health:
-    s = get_settings()
+async def health(request: Request) -> Health:
+    s: Settings = request.app.state.settings
     return Health(
         status="ok",
         version=VERSION,
