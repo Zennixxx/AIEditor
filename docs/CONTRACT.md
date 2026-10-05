@@ -456,6 +456,9 @@ interface EffectPreset {      // пользовательский пресет-�
 | `PUT /projects/{id}` | 400 | `project_id_mismatch` | id в теле ≠ id в пути |
 | | 409 | `revision_conflict` | `revision` — текущая ревизия |
 | `/jobs/{id}` | 404 | `job_not_found` | — |
+| `GET /analysis/music/{id}`, `GET /analysis/clip/{id}` | 404 | `analysis_not_found` | анализ ещё не выполнен |
+| `POST /analysis/…/{id}`, `/assets/{id}/stems` | 404 | `asset_not_found` | — |
+| `POST /assets/{id}/stems` | 501 | `demucs_not_installed` | — |
 | любой | 422 | `validation_error` | ошибки валидации |
 
 Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`.

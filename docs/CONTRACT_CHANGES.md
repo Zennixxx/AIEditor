@@ -16,15 +16,15 @@
 
 ## Proposed
 
-### Код ошибки `analysis_not_found` в §8.2
-- Автор: frontend
-- Фаза: 2
-- Что: добавить в таблицу §8.2: `GET /analysis/music/{id}` и `GET /analysis/clip/{id}` — HTTP 404, `code: "analysis_not_found"` (анализ ещё не выполнен); `POST /analysis/music/{id}` у неизвестного ассета — 404 `asset_not_found`.
-- Зачем: фронт трактует 404 от `GET /analysis/music/{id}` как «анализа нет, запустить задачу» (готовый анализ применяется без задачи); явный код отличает это от «ассет не найден». Моки уже отдают такие коды.
-- Пример JSON: `{ "error": { "code": "analysis_not_found", "message": "Анализ ещё не выполнен" } }`
-- Совместимость: да (уточнение).
+_пусто_
 
 ## Applied
+
+### v1.4.1 — коды ошибок анализа (только документация)
+- Дата: 2026-10-05
+- Автор: frontend, утвердил оркестратор
+- Что: CONTRACT §8.2 — 404 `analysis_not_found` у `GET /analysis/music|clip/{id}`, 404 `asset_not_found` у `POST /analysis/…/{id}` и `/assets/{id}/stems`, 501 `demucs_not_installed`.
+- Совместимость: да.
 
 ### v1.4 — подготовка фазы 2 (совместимо)
 - Дата: 2026-10-05
