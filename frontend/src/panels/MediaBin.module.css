@@ -1,0 +1,148 @@
+.bin {
+  min-height: 100%;
+  padding: 6px;
+}
+
+.bin[data-drop-active] {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  background: var(--accent-dim);
+}
+
+.importButton {
+  height: 20px;
+  padding: 0 10px;
+  font-size: 11px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.importButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #ff5d6c22;
+  color: var(--err);
+  font-size: 12px;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-2);
+}
+
+.card[draggable='true'] {
+  cursor: grab;
+}
+
+.card[data-status='importing'] {
+  opacity: 0.75;
+}
+
+.thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 54px;
+  flex: none;
+  border-radius: 3px;
+  background-color: #000;
+  background-repeat: no-repeat;
+  color: var(--text-faint);
+  font-size: 18px;
+}
+
+.thumb[data-kind='audio'] {
+  background-color: #1d3b30;
+  color: #7fd6ad;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.info {
+  display: flex;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.kind[data-kind='video'] {
+  color: #8fb0ff;
+}
+
+.kind[data-kind='audio'] {
+  color: #7fd6ad;
+}
+
+.status[data-status='importing'] {
+  color: var(--warn);
+}
+
+.status[data-status='failed'] {
+  color: var(--err);
+}
+
+.job {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.jobError {
+  font-size: 10px;
+  color: var(--err);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
