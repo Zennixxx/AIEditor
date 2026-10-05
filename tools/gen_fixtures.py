@@ -324,6 +324,25 @@ def ai_commands() -> dict[str, Any]:
     }
 
 
+def effect_presets() -> list[dict[str, Any]]:
+    return [
+        {"id": "pst_hitcombo01", "name": "Удар: шейк + вспышка", "description": "Шейк, белая вспышка и RGB-сдвиг на удар.",
+         "effects": [
+             {"effect": "shake", "start": 0, "duration": 0.35, "params": {"amount": 60},
+              "envelope": {"attack": 0, "hold": 0.05, "decay": 0.3, "curve": "exp"}},
+             {"effect": "flash", "start": 0, "duration": 0.2, "params": {"opacity": 0.7},
+              "envelope": {"attack": 0, "hold": 0.02, "decay": 0.18, "curve": "exp"}},
+             {"effect": "rgbSplit", "start": 0.02, "duration": 0.25, "params": {"amount": 18},
+              "envelope": {"attack": 0, "hold": 0.03, "decay": 0.22, "curve": "exp"}},
+         ]},
+        {"id": "pst_punchzoom1", "name": "Зум-панч мягкий",
+         "effects": [
+             {"effect": "zoomPunch", "start": 0, "duration": 0.3, "params": {"amount": 1.1, "motionBlur": True},
+              "envelope": {"attack": 0.02, "hold": 0, "decay": 0.28, "curve": "easeOut"}},
+         ]},
+    ]
+
+
 def main() -> None:
     rng = random.Random(SEED)
     FIX.mkdir(parents=True, exist_ok=True)
@@ -340,6 +359,7 @@ def main() -> None:
     write("jobs.json", jobs())
     write("ops_result.json", ops_result())
     write("ai_commands.json", ai_commands())
+    write("presets.json", effect_presets())
 
 
 if __name__ == "__main__":

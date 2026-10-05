@@ -20,6 +20,20 @@ _пусто_
 
 ## Applied
 
+### v1.5 — фаза 4: эффекты и пресеты (совместимо)
+- Дата: 2026-10-05
+- Автор: оркестратор (единый агент)
+- Что:
+  - CONTRACT §2.1 — формула интенсивности эффекта: огибающая (`attack/hold/decay`, кривые `linear`/`easeOut`/`exp`) × параметр `strength`; отсутствующие ключи `params` — дефолты реестра;
+  - `shared/effects.json`: параметр `strength` (0..2, 1) добавлен всем эффектам, кроме переходов (`panCrop`, `strobe`, `flash`, `invert`, `glow`, `filmGrain`, `vignette`, `letterbox`, `contrastPunch`, `chromaWave`) — `scaleByStrength` работает единообразно;
+  - CONTRACT §6.2 — семантика макро-op `applyEffectToMarkers` (обрезка длительности до следующего маркера, цели, `anchor`, коды `unknown_effect`, `no_markers`, `slots_overlap`, `incompatible_track`, `bad_value`);
+  - `POST /presets` принимает `CreateEffectPresetRequest` (`{name, description?, effects}`, без `id`), бэк назначает `pst_…`; `GET /presets` → `EffectPreset[]`; 422 `invalid_preset` с `details.errors`;
+  - `Health.registryErrors?: string[]` — ошибки проверки `effects.json` / `styles.json` при старте (сервер не падает);
+  - фикстура `shared/fixtures/presets.json` (`EffectPreset[]`) для MSW-моков.
+  - CONTRACT §2.1 — правило следования эффектов с `anchor` за маркером (кто сохраняет место, кто едет, обрезка наезда);
+  - CONTRACT §1 — уточнение координат кадра: ось y вниз, поворот по часовой стрелке, `anchor` — точка поворота/масштаба (сам слой не сдвигает).
+- Совместимость: да, `schemaVersion` остаётся 1 (новые необязательные поле и тип; эффекты без `strength` в старых проектах получают дефолт 1).
+
 ### v1.4.4 — фаза 3 фронта: семантика макро-ops (только документация)
 - Дата: 2026-10-05
 - Автор: frontend

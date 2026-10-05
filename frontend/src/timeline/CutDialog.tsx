@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as actions from '@/app/actions'
 import { countSlots, expandCutToMarkers, type CutOp } from '@/model/cutToMarkers'
 import { isClip } from '@/model/lookup'
-import { MARKER_KINDS } from '@/model/markers'
 import { OpsError } from '@/model/ops/errors'
-import { SECTION_LABELS } from '@/model/sections'
-import type { Clip, CutOrder, MarkerKind, Project, SectionLabel } from '@/shared/types.gen'
+import type { Clip, CutOrder, Project } from '@/shared/types.gen'
 import { useAssets } from '@/store/assets'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import styles from './CutDialog.module.css'
+import { filterFromForm, initialFilterForm, toggle, type FilterForm } from './filterForm'
+import { MarkerFilterFields } from './MarkerFilterFields'
 
 const ORDERS: { value: CutOrder; label: string; disabled?: boolean }[] = [
   { value: 'sequential', label: 'По порядку' },
@@ -17,20 +17,11 @@ const ORDERS: { value: CutOrder; label: string; disabled?: boolean }[] = [
   { value: 'bestMoments', label: 'Лучшие моменты (после ИИ-анализа)', disabled: true },
 ]
 
-interface FormState {
+interface FormState extends FilterForm {
   clipIds: string[]
   trackId: string
-  musicClipId: string
   order: CutOrder
   seed: number
-  kinds: MarkerKind[]
-  minStrength: number
-  every: number
-  offset: number
-  sectionLabels: SectionLabel[]
-  useRange: boolean
-  rangeStart: number
-  rangeEnd: number
 }
 
 function videoClips(p: Project): { clip: Clip; trackName: string }[] {
@@ -47,37 +38,14 @@ function initialState(p: Project, selection: readonly string[], minStrength: num
   const clipIds = (
     picked.length > 0 ? picked : all.filter(({ clip }) => firstTrack?.items.includes(clip))
   ).map(({ clip }) => clip.id)
-  return {
-    clipIds,
-    trackId: '',
-    musicClipId: '',
-    order: 'sequential',
-    seed: 1,
-    kinds: ['bass'],
-    minStrength,
-    every: 1,
-    offset: 0,
-    sectionLabels: [],
-    useRange: false,
-    rangeStart: 0,
-    rangeEnd: Math.max(1, Math.round(p.duration)),
-  }
+  return { ...initialFilterForm(p, minStrength), clipIds, trackId: '', order: 'sequential', seed: 1 }
 }
 
 function toOp(f: FormState): CutOp {
-  const filter: CutOp['filter'] = { kinds: f.kinds, every: f.every, offset: f.offset }
-  if (f.minStrength > 0) filter.minStrength = f.minStrength
-  if (f.musicClipId) filter.musicClipId = f.musicClipId
-  if (f.sectionLabels.length > 0) filter.sectionLabels = f.sectionLabels
-  if (f.useRange) filter.range = { start: f.rangeStart, end: f.rangeEnd }
-  const op: CutOp = { op: 'cutToMarkers', clipIds: f.clipIds, filter, order: f.order }
+  const op: CutOp = { op: 'cutToMarkers', clipIds: f.clipIds, filter: filterFromForm(f), order: f.order }
   if (f.trackId) op.trackId = f.trackId
   if (f.order === 'random') op.seed = f.seed
   return op
-}
-
-function toggle<T>(list: readonly T[], item: T): T[] {
-  return list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
 }
 
 /** Диалог «Нарезать по маркерам»: клипы, фильтр маркеров, порядок и предпросмотр числа слотов. */
@@ -100,7 +68,6 @@ function CutDialogBody() {
 
   const clips = useMemo(() => videoClips(project), [project])
   const videoTracks = project.tracks.filter((t) => t.kind === 'video')
-  const audioClips = project.tracks.flatMap((t) => (t.kind === 'audio' ? t.items.filter(isClip) : []))
   const op = useMemo(() => toOp(f), [f])
 
   // предпросмотр: число слотов или причина, по которой нарезка невозможна
@@ -180,116 +147,7 @@ function CutDialogBody() {
 
         <section className={styles.section}>
           <h3>Маркеры</h3>
-          <label className={styles.row}>
-            Музыка
-            <select
-              value={f.musicClipId}
-              onChange={(e) => patch({ musicClipId: e.currentTarget.value })}
-              data-testid="cut-music"
-            >
-              <option value="">Первый аудиоклип с маркерами</option>
-              {audioClips.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label ?? assetName(c.assetId)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={styles.chips}>
-            {MARKER_KINDS.map((k) => (
-              <button
-                key={k}
-                aria-pressed={f.kinds.includes(k)}
-                onClick={() => patch({ kinds: toggle(f.kinds, k) })}
-                data-testid={`cut-kind-${k}`}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-          <label className={styles.row}>
-            Порог силы {Math.round(f.minStrength * 100)}%
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={f.minStrength}
-              onChange={(e) => patch({ minStrength: Number(e.currentTarget.value) })}
-              data-testid="cut-strength"
-            />
-          </label>
-          <div className={styles.inline}>
-            <label>
-              Каждый
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={f.every}
-                onChange={(e) =>
-                  patch({ every: Math.max(1, Math.round(Number(e.currentTarget.value) || 1)) })
-                }
-                data-testid="cut-every"
-              />
-              -й
-            </label>
-            <label>
-              Смещение
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={f.offset}
-                onChange={(e) =>
-                  patch({ offset: Math.max(0, Math.round(Number(e.currentTarget.value) || 0)) })
-                }
-                data-testid="cut-offset"
-              />
-            </label>
-          </div>
-          <div className={styles.chips} title="Секции музыки; ничего не выбрано — любые">
-            {SECTION_LABELS.map((l) => (
-              <button
-                key={l}
-                aria-pressed={f.sectionLabels.includes(l)}
-                onClick={() => patch({ sectionLabels: toggle(f.sectionLabels, l) })}
-                data-testid={`cut-section-${l}`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-          <div className={styles.inline}>
-            <label className={styles.check}>
-              <input
-                type="checkbox"
-                checked={f.useRange}
-                onChange={(e) => patch({ useRange: e.currentTarget.checked })}
-                data-testid="cut-range-on"
-              />
-              Диапазон, с
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={0.5}
-              disabled={!f.useRange}
-              value={f.rangeStart}
-              onChange={(e) => patch({ rangeStart: Number(e.currentTarget.value) || 0 })}
-              data-testid="cut-range-start"
-            />
-            <span>—</span>
-            <input
-              type="number"
-              min={0}
-              step={0.5}
-              disabled={!f.useRange}
-              value={f.rangeEnd}
-              onChange={(e) => patch({ rangeEnd: Number(e.currentTarget.value) || 0 })}
-              data-testid="cut-range-end"
-            />
-          </div>
+          <MarkerFilterFields project={project} value={f} onChange={patch} testPrefix="cut" />
         </section>
 
         <section className={styles.section}>

@@ -3,6 +3,7 @@ import type {
   AiCommandsFile,
   Asset,
   ClipAnalysis,
+  EffectPreset,
   Health,
   Job,
   MusicAnalysis,
@@ -20,6 +21,7 @@ import healthJson from '@shared/fixtures/health.json'
 import jobsJson from '@shared/fixtures/jobs.json'
 import musicAnalysisJson from '@shared/fixtures/music_analysis.json'
 import opsResultJson from '@shared/fixtures/ops_result.json'
+import presetsJson from '@shared/fixtures/presets.json'
 import projectJson from '@shared/fixtures/project.json'
 import rampPresetsJson from '@shared/fixtures/ramp_presets.json'
 import thumbsJson from '@shared/fixtures/thumbs_video_a.json'
@@ -38,6 +40,7 @@ export const fixtures = {
   opsResult: opsResultJson as unknown as OpsResult,
   aiCommands: aiCommandsJson as AiCommandsFile,
   rampPresets: rampPresetsJson as unknown as RampPresetsFile,
+  presets: presetsJson as unknown as EffectPreset[],
   timeRemapVectors: timeRemapVectorsJson as unknown as TimeRemapVectorsFile,
 }
 

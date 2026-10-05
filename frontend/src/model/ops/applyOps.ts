@@ -1,5 +1,5 @@
 // Применение edit-ops (CONTRACT §6) одной атомарной транзакцией.
-// Все примитивные ops и макро-ops cutToMarkers / snapClipEdgesToMarkers (CONTRACT §6.2); applyEffectToMarkers — фаза 4.
+// Все примитивные ops и макро-ops applyEffectToMarkers / cutToMarkers / snapClipEdgesToMarkers (CONTRACT §6.2).
 import { current, isDraft, produce, type Draft } from 'immer'
 import type {
   Asset,
@@ -20,6 +20,8 @@ import { getEffectDef } from '@/shared/effects-registry'
 import { isTempId, newId, type IdPrefix } from '@/shared/ids'
 import { EPS, effectiveSourceOut, itemEnd } from '../clipTime'
 import { splitClipData } from '../clipEdit'
+import { syncAnchors } from '../anchors'
+import { expandApplyEffectToMarkers } from '../applyEffectToMarkers'
 import { expandCutToMarkers } from '../cutToMarkers'
 import { checkInvariants } from '../invariants'
 import { findClip, findEffect, findMarker, findTrack, collectIds, isClip, trackAcceptsAsset } from '../lookup'
@@ -69,6 +71,7 @@ export function applyOpsToDraft(
       throw e
     }
   })
+  syncAnchors(p, tx.touchedEffects)
   finalizeProject(p)
   const violations = checkInvariants(p)
   if (violations.length > 0) {
@@ -95,6 +98,8 @@ export function applyOps(
 class Tx {
   readonly idMap = new Map<string, string>()
   readonly created: string[] = []
+  /** Эффекты, созданные или изменённые напрямую: их место сохраняется, пересчитывается anchor.offset. */
+  readonly touchedEffects = new Set<string>()
   private readonly ids: Set<string>
   private readonly gen: (prefix: IdPrefix) => string
 
@@ -226,6 +231,7 @@ class Tx {
         }
         assignDefined(ref.effect, rest)
         if (anchor !== undefined) ref.effect.anchor = this.anchor(anchor)
+        if (rest.start !== undefined || anchor !== undefined) this.touchedEffects.add(ref.effect.id)
         return
       }
       case 'removeEffect': {
@@ -240,7 +246,7 @@ class Tx {
       case 'snapClipEdgesToMarkers':
         return this.expand(expandSnapClipEdges(this.snapshot(), op))
       case 'applyEffectToMarkers':
-        throw new OpsError('not_implemented', `Макро-op ${op.op} пока не поддерживается`)
+        return this.expand(expandApplyEffectToMarkers(this.snapshot(), op))
       default: {
         const unknown = op as { op?: unknown }
         throw new OpsError('unknown_op', `Неизвестный op ${String(unknown.op)}`)
@@ -475,6 +481,7 @@ class Tx {
     const { id: requested, anchor, ...rest } = structuredClone(input)
     const effect: EffectItem = { ...rest, id: this.alloc('fx', requested), type: 'effect' }
     if (anchor) effect.anchor = this.anchor(anchor)
+    this.touchedEffects.add(effect.id)
     return effect
   }
 

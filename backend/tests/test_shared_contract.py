@@ -42,6 +42,7 @@ CASES = [
     ("ai_commands.json", "AiCommandsFile", False),
     ("ramp_presets.json", "RampPresetsFile", False),
     ("time_remap_vectors.json", "TimeRemapVectorsFile", False),
+    ("presets.json", "EffectPreset", True),
 ]
 
 

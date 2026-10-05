@@ -250,6 +250,10 @@ export interface Health {
   rife: boolean
   demucs: boolean
   gemini: boolean
+  /**
+   * Ошибки проверки shared/effects.json и shared/styles.json при старте бэка; поля нет — реестры в порядке.
+   */
+  registryErrors?: string[]
 }
 export interface Thumbs {
   interval: number
@@ -387,6 +391,17 @@ export interface PresetEffect {
   duration: number
   params: EffectParams
   envelope: Envelope
+}
+/**
+ * Тело POST /presets: id назначает бэк (pst_).
+ */
+export interface CreateEffectPresetRequest {
+  name: string
+  description?: string
+  /**
+   * @minItems 1
+   */
+  effects: PresetEffect[]
 }
 export interface EffectPreset {
   id: string

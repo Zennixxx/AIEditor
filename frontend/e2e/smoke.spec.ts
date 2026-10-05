@@ -14,8 +14,8 @@ test('split panes resize and persist', async ({ page }) => {
   await page.goto('/')
   const media = page.getByRole('region', { name: 'Медиа' })
   const before = (await media.boundingBox())!.width
-  // первый разделитель в DOM — между «Медиа» и «Превью»
-  const handle = page.getByRole('separator').first()
+  // первый вертикальный разделитель в DOM — между левой колонкой («Медиа» / «Эффекты») и «Превью»
+  const handle = page.locator('[role="separator"][aria-orientation="vertical"]').first()
   const box = (await handle.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()

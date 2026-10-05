@@ -363,14 +363,9 @@ describe('applyOps', () => {
     )
   })
 
-  it('rejects unknown ops, macro ops (not yet) and unresolved temp ids', () => {
+  it('rejects unknown ops and unresolved temp ids', () => {
     const p = sampleProject()
     expectReject(p, [{ op: 'explode' } as unknown as EditOp], 'unknown_op')
-    expectReject(
-      p,
-      [{ op: 'applyEffectToMarkers', effect: 'shake', filter: {}, target: 'newFxTrack' }],
-      'not_implemented',
-    )
     expectReject(p, [{ op: 'moveClip', clipId: 'tmp_x', start: 0 }], 'unknown_temp_id')
   })
 

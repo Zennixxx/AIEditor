@@ -13,6 +13,7 @@ SCHEMA_VERSION = 1
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ROOT_DIR = BACKEND_DIR.parent
 TOOLS_BIN = ROOT_DIR / "tools" / "bin"
+SHARED_DIR = ROOT_DIR / "shared"
 EXE = ".exe" if sys.platform == "win32" else ""
 
 
@@ -29,6 +30,7 @@ class Settings(BaseSettings):
     aieditor_host: str = "127.0.0.1"
     aieditor_port: int = 8765
     aieditor_debug: bool = False
+    aieditor_shared_dir: Path = SHARED_DIR
     aieditor_cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "tauri://localhost"]
 
     ffmpeg_path: Path | None = None

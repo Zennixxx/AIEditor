@@ -38,6 +38,12 @@ interface UiState {
   draggingAssetId: string | null
   /** Открыт диалог «Нарезать по маркерам». */
   cutDialogOpen: boolean
+  /** Открыт диалог «Эффект по маркерам» с предвыбранным эффектом. */
+  fxDialog: { effect: string } | null
+  /** Эффект, который сейчас тащат из библиотеки эффектов. */
+  draggingEffect: string | null
+  /** Эффект клипа, раскрытый в инспекторе. */
+  inspectedEffectId: string | null
 
   select: (ids: string[]) => void
   selectMarkers: (ids: string[]) => void
@@ -54,6 +60,9 @@ interface UiState {
   setClipboard: (entries: ClipboardEntry[]) => void
   setDraggingAsset: (id: string | null) => void
   setCutDialogOpen: (open: boolean) => void
+  openFxDialog: (effect: string | null) => void
+  setDraggingEffect: (effect: string | null) => void
+  inspectEffect: (id: string | null) => void
 }
 
 export function clampZoom(pxPerSec: number): number {
@@ -78,6 +87,9 @@ export const useUi = create<UiState>()((set, get) => ({
   focusMarkerId: null,
   draggingAssetId: null,
   cutDialogOpen: false,
+  fxDialog: null,
+  draggingEffect: null,
+  inspectedEffectId: null,
 
   select: (ids) => set({ selection: [...new Set(ids)] }),
   selectMarkers: (ids) => set({ markerSelection: [...new Set(ids)] }),
@@ -100,4 +112,7 @@ export const useUi = create<UiState>()((set, get) => ({
   setClipboard: (clipboard) => set({ clipboard }),
   setDraggingAsset: (draggingAssetId) => set({ draggingAssetId }),
   setCutDialogOpen: (cutDialogOpen) => set({ cutDialogOpen }),
+  openFxDialog: (effect) => set({ fxDialog: effect === null ? null : { effect } }),
+  setDraggingEffect: (draggingEffect) => set({ draggingEffect }),
+  inspectEffect: (inspectedEffectId) => set({ inspectedEffectId }),
 }))

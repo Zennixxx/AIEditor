@@ -344,6 +344,10 @@ class Health(BaseModel):
     rife: bool
     demucs: bool
     gemini: bool
+    registry_errors: list[str] | None = Field(
+        None,
+        description="Ошибки проверки shared/effects.json и shared/styles.json при старте бэка; поля нет — реестры в порядке.",
+    )
 
 
 class Thumbs(BaseModel):
@@ -575,6 +579,21 @@ class PresetEffect(BaseModel):
     duration: float = Field(..., gt=0.0)
     params: EffectParams
     envelope: Envelope
+
+
+class CreateEffectPresetRequest(BaseModel):
+    """
+    Тело POST /presets: id назначает бэк (pst_).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    name: str = Field(..., min_length=1)
+    description: str | None = None
+    effects: list[PresetEffect] = Field(..., min_length=1)
 
 
 class EffectPreset(BaseModel):

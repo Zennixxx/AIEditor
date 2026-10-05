@@ -11,10 +11,21 @@ async function enableMocks(): Promise<void> {
   await worker.start({ onUnhandledRequest: 'bypass', quiet: true })
 }
 
+async function exposeDebug(): Promise<void> {
+  // dev: сторы доступны из консоли и e2e (window.__aieditor) — проверка превью, замер fps
+  if (!import.meta.env.DEV) return
+  const [{ useProject }, { useUi }, { player }] = await Promise.all([
+    import('./store/project'),
+    import('./store/ui'),
+    import('./playback/player'),
+  ])
+  ;(window as unknown as Record<string, unknown>).__aieditor = { useProject, useUi, player }
+}
+
 const root = document.getElementById('root')
 if (!root) throw new Error('#root not found')
 
-void enableMocks().then(() => {
+void Promise.all([enableMocks(), exposeDebug()]).then(() => {
   createRoot(root).render(
     <StrictMode>
       <App />

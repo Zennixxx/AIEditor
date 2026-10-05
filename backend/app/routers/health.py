@@ -5,14 +5,16 @@ import importlib.util
 from fastapi import APIRouter, Request
 
 from app.config import SCHEMA_VERSION, VERSION, Settings, ffmpeg_bin, ffprobe_bin, rife_bin
+from app.effects.registry import Registry
 from app.models.gen import Health
 
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=Health, response_model_by_alias=True)
+@router.get("/health", response_model=Health, response_model_by_alias=True, response_model_exclude_none=True)
 async def health(request: Request) -> Health:
     s: Settings = request.app.state.settings
+    registry: Registry = request.app.state.registry
     return Health(
         status="ok",
         version=VERSION,
@@ -21,4 +23,5 @@ async def health(request: Request) -> Health:
         rife=rife_bin(s) is not None,
         demucs=importlib.util.find_spec("demucs") is not None,
         gemini=bool(s.gemini_api_key),
+        registry_errors=registry.errors or None,
     )

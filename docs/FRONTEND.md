@@ -117,22 +117,22 @@ frontend/src/
 ## Фаза 4 — Рендерер и эффекты
 
 ### 4.1 Рендерер (`render/`)
-- [ ] WebGL2-контекст на canvas превью; ресайз с сохранением аспекта проекта.
-- [ ] `frameSource`: в превью — текстура из `<video>` (`texImage2D` + `requestVideoFrameCallback`); в экспорте — `VideoFrame` из Mediabunny. Единый интерфейс `getFrame(clip, srcTime) → TextureSource`.
-- [ ] Пайплайн кадра в момент `T`:
+- [x] WebGL2-контекст на canvas превью; ресайз с сохранением аспекта проекта. _(`render/renderer.ts`; буфер — не больше размера проекта; без WebGL2 — запасной Canvas 2D без эффектов, `data-renderer` на canvas)_
+- [x] `frameSource`: в превью — текстура из `<video>` (`texImage2D` + `requestVideoFrameCallback`); в экспорте — `VideoFrame` из Mediabunny. Единый интерфейс `getFrame(clip, srcTime) → TextureSource`. _(`render/frameSource.ts: FrameResolver` (шаг плана → `FrameImage`); превью — `render/previewSource.ts`: `<video>` пула, при скрабе тайл атласа thumbs (crop), картинки; видео загружается в текстуру на каждый рендер, rVFC не понадобился — перерисовка по событиям пула; `VideoFrame` экспорта — фаза 6)_
+- [x] Пайплайн кадра в момент `T`: _(`render/framePlan.ts: buildFramePlan` — чистая функция с тестами; премультиплицированная альфа, режимы смешения normal/add/screen/multiply/overlay; геометрия слоя — `render/layerMath.ts`, CONTRACT §1)_
   1. для каждой видимой дорожки снизу вверх: для клипа под `T` — `src = timeRemap(T)`, кадр → transform (ключи) → эффекты клипа (по порядку) → смешение в аккумулятор по `blendMode`/`opacity`;
   2. fx-дорожка: её активные эффекты применяются к текущему аккумулятору;
   3. вывод на экран.
-- [ ] Пинг-понг FBO, пул текстур, никакой аллокации в кадре.
-- [ ] Каждый эффект — модуль `{ def: EffectDef, compile(gl), render(gl, input, output, params, intensity, localTime, rng) }`. `intensity` = envelope(t) × параметр «сила».
-- [ ] Детерминированный шум: сид = hash(effect.id) + номер кадра, чтобы превью и экспорт совпадали.
-- [ ] Счётчик fps в углу превью (dev).
+- [x] Пинг-понг FBO, пул текстур, никакой аллокации в кадре. _(`gl.ts: TargetPool`; программы всех эффектов компилируются при старте — `warmUp`)_
+- [x] Каждый эффект — модуль `{ def: EffectDef, compile(gl), render(gl, input, output, params, intensity, localTime, rng) }`. `intensity` = envelope(t) × параметр «сила». _(`render/effects/*`: `{id, fragment, uniforms(frame)}`; огибающая — `model/envelope.ts`, CONTRACT §2.1. Готовы 16 эффектов: shake (motion blur по траектории), zoomPunch, panCrop, tilt3d, flicker, strobe, flash, rgbSplit, chromaWave, invert, contrastPunch, zoomBlur, directionalBlur, filmGrain, vignette, letterbox. **glow** (многопроходный) и переходы — 4b; эффект без модуля рендер пропускает)_
+- [x] Детерминированный шум: сид = hash(effect.id) + номер кадра, чтобы превью и экспорт совпадали. _(`render/noise.ts`: FNV-1a + value-noise на CPU для траекторий; `u_seed`/`u_frame` в шейдерах)_
+- [x] Счётчик fps в углу превью (dev). _(`preview-fps`; в dev сторы доступны как `window.__aieditor` — для e2e и замеров)_
 
 ### 4.2 UI эффектов
-- [ ] Библиотека эффектов (панель с категориями и поиском, анимированные превью-иконки — опционально).
-- [ ] Drag эффекта на клип (→ `clip.effects`) или на fx-дорожку (→ adjustment-элемент).
-- [ ] Инспектор: параметры по реестру (слайдеры с числовым вводом, цвет, enum), огибающая (мини-график attack/hold/decay), привязка к маркеру.
-- [ ] Диалог «Применить к маркерам» (реализует `applyEffectToMarkers`): эффект, фильтр маркеров, цель, длительность, вариация силы по `strength` маркера (чекбокс «сильнее на сильных басах»).
+- [x] Библиотека эффектов (панель с категориями и поиском, анимированные превью-иконки — опционально). _(`panels/EffectsLibrary.tsx` под Media Bin; ⚡ — «на маркеры»; иконок нет)_
+- [x] Drag эффекта на клип (→ `clip.effects`) или на fx-дорожку (→ adjustment-элемент). _(`model/effects.ts: planEffectDrop`; мимо клипа/fx-дорожки — новая fx-дорожка; занятое место на fx-дорожке — ошибка)_
+- [x] Инспектор: параметры по реестру (слайдеры с числовым вводом, цвет, enum), огибающая (мини-график attack/hold/decay), привязка к маркеру. _(`panels/EffectEditor.tsx`, список эффектов клипа — `ClipEffects.tsx`; сброс параметра к дефолту, «Отвязать» от маркера. Эффекты с `anchor` едут за маркером/музыкальным клипом — `model/anchors.ts` в конце каждой транзакции)_
+- [x] Диалог «Применить к маркерам» (реализует `applyEffectToMarkers`): эффект, фильтр маркеров, цель, длительность, вариация силы по `strength` маркера (чекбокс «сильнее на сильных басах»). _(`model/applyEffectToMarkers.ts` (семантика — CONTRACT §6.2), `timeline/FxDialog.tsx` с предпросмотром числа эффектов; поля фильтра общие с «Нарезать» — `MarkerFilterFields.tsx`)_
 - [ ] Ключевые кадры для `transform` и `opacity`: ромбики на клипе, `P/S/R` — показать дорожки свойств позиции/масштаба/поворота, граф-редактор упрощённый (ease-пресеты).
 - [ ] Пресеты-комбо: сохранить набор эффектов выделения как пресет (`POST /presets`), применить пресет.
 - [ ] Переходы: эффекты категории `transition` ставятся на стык двух клипов (центр на стыке), автоматически занимают fx-дорожку.
@@ -165,6 +165,9 @@ frontend/src/
 | `glitchTransition` | blocks 12, rgb 20px | блочный сдвиг + rgbSplit |
 
 **Готово, когда:** шейк + zoomPunch + flicker на каждом басе трека — ≥ 30 fps в превью на 1080p-проекте с прокси 720p.
+
+**4a готово** (2026-10-05): рендерер, 16 эффектов, библиотека, drag на клип/fx-дорожку, инспектор эффекта, диалог «Эффект по маркерам», привязка к маркерам. typecheck, lint, Vitest (252), Playwright (12, в т.ч. `render.spec` — все шейдеры компилируются, `effects.spec` — диалог → эффекты на каждый 2-й бас → undo/redo, drag на клип, параметры). Проверено на реальном бэке (PLAN §4.2 «Инт.3/4»): 60 fps при буфере 1920×1080.
+**Осталось на 4b:** ключевые кадры `transform`/`opacity` в UI, пресеты-комбо (`/presets` — API-клиент и MSW готовы), переходы на стыках, шейдер `glow`.
 
 ## Фаза 5 — Speed ramp
 

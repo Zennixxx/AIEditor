@@ -3,6 +3,8 @@
 import { delay, http, HttpResponse, ws } from 'msw'
 import type {
   Asset,
+  CreateEffectPresetRequest,
+  EffectPreset,
   ImportResponse,
   Job,
   JobKind,
@@ -15,6 +17,7 @@ import type {
   Waveform,
   WsEvent,
 } from '@/shared/types.gen'
+import { paramErrors } from '@/shared/effects-registry'
 import { newId } from '@/shared/ids'
 import { API_BASE, WS_URL } from '../config'
 import { clone, fixtures } from './fixtures'
@@ -28,6 +31,7 @@ const events = ws.link(WS_URL)
 
 const assets = new Map<string, Asset>(fixtures.assets.map((a) => [a.id, clone(a)]))
 const projects = new Map<string, Project>([[fixtures.project.id, clone(fixtures.project)]])
+const presets: EffectPreset[] = clone(fixtures.presets)
 const jobs = new Map<string, Job>(fixtures.jobs.map((j) => [j.id, clone(j)]))
 const timers = new Map<string, ReturnType<typeof setInterval>>()
 /** Готовые анализы музыки по assetId (GET /analysis/music/{id}); демо-ассет фикстур считается проанализированным. */
@@ -432,7 +436,28 @@ export const handlers = [
     return HttpResponse.json(saved)
   }),
 
-  http.get(url('/presets'), () => HttpResponse.json([])),
+  http.get(url('/presets'), () => HttpResponse.json(presets)),
+  http.post(url('/presets'), async ({ request }) => {
+    const body = (await request.json()) as CreateEffectPresetRequest
+    const errors = body.effects.flatMap((e, i) =>
+      paramErrors(e.effect, e.params).map((m) => `effects[${i}]: ${m}`),
+    )
+    if (errors.length > 0) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'invalid_preset',
+            message: 'Пресет не соответствует реестру эффектов',
+            details: { errors },
+          },
+        },
+        { status: 422 },
+      )
+    }
+    const preset: EffectPreset = { ...body, id: newId('pst') }
+    presets.push(preset)
+    return HttpResponse.json(preset)
+  }),
 
   // --- ИИ ---
   http.post(url('/ai/analyze-clip/:id'), ({ params }) => {

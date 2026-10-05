@@ -1,81 +1,37 @@
 import { useEffect, useRef } from 'react'
 import { containRect, coverSource } from '@/playback/frame'
-import { assetLookup, player } from '@/playback/player'
-import { topVideoLayer } from '@/playback/timing'
-import { frameReady } from '@/playback/videoPool'
+import { player } from '@/playback/player'
+import { buildFramePlan, type LayerStep } from '@/render/framePlan'
+import type { FrameImage } from '@/render/frameSource'
+import { previewResolver } from '@/render/previewSource'
+import { Renderer, type RenderStats } from '@/render/renderer'
 import { formatTimecode } from '@/shared/time'
 import type { Project } from '@/shared/types.gen'
-import { getImage, getThumbs, onMediaLoaded, thumbTile } from '@/store/media'
+import { onMediaLoaded } from '@/store/media'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { Panel } from './Panel'
 import styles from './Preview.module.css'
 
-/** Откуда взят показанный кадр (для отладки и e2e): видео, атлас thumbs, картинка или ничего. */
-type FrameSource = 'video' | 'thumb' | 'image' | 'none'
+/** Счётчик fps превью (dev): число отрисовок за последнюю секунду. */
+const SHOW_FPS = import.meta.env.DEV
 
-function drawCover(
-  ctx: CanvasRenderingContext2D,
-  img: CanvasImageSource,
-  src: { x: number; y: number; w: number; h: number },
-  dw: number,
-  dh: number,
-): void {
-  const r = coverSource(src.w, src.h, dw, dh)
-  ctx.drawImage(img, src.x + r.x, src.y + r.y, r.w, r.h, 0, 0, dw, dh)
-}
-
-function mediaSize(img: HTMLVideoElement | HTMLImageElement): { w: number; h: number } {
-  return img instanceof HTMLVideoElement
-    ? { w: img.videoWidth, h: img.videoHeight }
-    : { w: img.naturalWidth, h: img.naturalHeight }
-}
-
-/** Кадр верхнего видимого клипа под плейхедом (Canvas 2D; композитинг и эффекты — WebGL, фаза 4). */
-function drawFrame(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  project: Project,
-): {
-  source: FrameSource
-  clipId: string | null
-} {
-  const ui = useUi.getState()
+/**
+ * Запасной путь без WebGL2: Canvas 2D, только кадр верхнего слоя без transform и эффектов.
+ */
+function drawFallback(ctx: CanvasRenderingContext2D, w: number, h: number, project: Project): RenderStats {
   ctx.fillStyle = project.background || '#000'
   ctx.fillRect(0, 0, w, h)
-  const layer = topVideoLayer(project, ui.playhead)
-  if (!layer) return { source: 'none', clipId: null }
-  const clipId = layer.clip.id
-  const asset = assetLookup(project)(layer.clip.assetId)
-  if (!asset) return { source: 'none', clipId }
-
-  if (asset.kind === 'image') {
-    const img = getImage(`/api/assets/${asset.id}/original`)
-    if (!img) return { source: 'none', clipId }
-    const s = mediaSize(img)
-    drawCover(ctx, img, { x: 0, y: 0, ...s }, w, h)
-    return { source: 'image', clipId }
-  }
-
-  const el = player.video.element(clipId)
-  if (!player.scrubbingFast() && el && frameReady(el, layer.src, project.fps, ui.playing)) {
-    const s = mediaSize(el)
-    if (s.w > 0 && s.h > 0) {
-      drawCover(ctx, el, { x: 0, y: 0, ...s }, w, h)
-      return { source: 'video', clipId }
-    }
-  }
-
-  // быстрый скраб / видео ещё не готово — кадр из атласа превью
-  const thumbs = getThumbs(asset.derived.thumbs)
-  const tile = thumbs ? thumbTile(thumbs, layer.src) : null
-  const atlas = tile ? getImage(tile.sprite) : null
-  if (tile && atlas) {
-    drawCover(ctx, atlas, { x: tile.sx, y: tile.sy, w: tile.sw, h: tile.sh }, w, h)
-    return { source: 'thumb', clipId }
-  }
-  return { source: 'none', clipId }
+  const plan = buildFramePlan(project, useUi.getState().playhead)
+  const resolve = previewResolver(project)
+  const top = [...plan.steps].reverse().find((s): s is LayerStep => s.kind === 'layer')
+  const stats: RenderStats = { source: 'none', clipId: top?.clip.id ?? null, layers: 0, effects: 0 }
+  const image: FrameImage | null = top ? resolve(top) : null
+  if (!image) return stats
+  const crop = image.crop ?? { x: 0, y: 0, w: image.width, h: image.height }
+  const r = coverSource(crop.w, crop.h, w, h)
+  ctx.drawImage(image.source as CanvasImageSource, crop.x + r.x, crop.y + r.y, r.w, r.h, 0, 0, w, h)
+  return { ...stats, source: image.kind, layers: 1 }
 }
 
 export function Preview() {
@@ -86,13 +42,26 @@ export function Preview() {
   const viewportRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  const fpsRef = useRef<HTMLSpanElement>(null)
+
   useEffect(() => {
     const viewport = viewportRef.current
     const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!viewport || !canvas || !ctx) return
+    if (!viewport || !canvas) return
+    let renderer: Renderer | null = null
+    let ctx2d: CanvasRenderingContext2D | null = null
+    try {
+      renderer = new Renderer(canvas)
+      renderer.warmUp()
+    } catch (e) {
+      console.warn('Превью: WebGL2 недоступен, Canvas 2D без эффектов', e)
+      ctx2d = canvas.getContext('2d')
+    }
+    canvas.dataset.renderer = renderer ? 'webgl2' : '2d'
     let raf = 0
     let box = { w: viewport.clientWidth, h: viewport.clientHeight }
+    const frameTimes: number[] = []
+    let fpsShownAt = 0
 
     const layout = () => {
       const p = useProject.getState().project
@@ -111,18 +80,40 @@ export function Preview() {
       }
     }
 
+    const countFps = () => {
+      const now = performance.now()
+      frameTimes.push(now)
+      while (frameTimes.length > 0 && frameTimes[0]! < now - 1000) frameTimes.shift()
+      if (fpsRef.current && now - fpsShownAt > 500) {
+        fpsShownAt = now
+        fpsRef.current.textContent = `${frameTimes.length} fps`
+      }
+    }
+
     const draw = () => {
       raf = 0
       layout()
-      const res = drawFrame(ctx, canvas.width, canvas.height, useProject.getState().project)
+      const project = useProject.getState().project
+      let res: RenderStats
+      if (renderer) {
+        const plan = buildFramePlan(project, useUi.getState().playhead)
+        res = renderer.render(plan, previewResolver(project))
+      } else if (ctx2d) {
+        res = drawFallback(ctx2d, canvas.width, canvas.height, project)
+      } else return
+      if (SHOW_FPS) countFps()
       if (canvas.dataset.source !== res.source) canvas.dataset.source = res.source
       const clip = res.clipId ?? ''
       if (canvas.dataset.clipId !== clip) canvas.dataset.clipId = clip
+      const fx = String(res.effects)
+      if (canvas.dataset.effects !== fx) canvas.dataset.effects = fx
     }
     const redraw = () => {
       if (!raf) raf = requestAnimationFrame(draw)
     }
 
+    const onLost = (e: Event) => e.preventDefault()
+    canvas.addEventListener('webglcontextlost', onLost)
     const ro = new ResizeObserver(() => {
       box = { w: viewport.clientWidth, h: viewport.clientHeight }
       redraw()
@@ -141,6 +132,8 @@ export function Preview() {
       ro.disconnect()
       unsubs.forEach((u) => u())
       if (raf) cancelAnimationFrame(raf)
+      canvas.removeEventListener('webglcontextlost', onLost)
+      renderer?.dispose()
     }
   }, [])
 
@@ -154,6 +147,7 @@ export function Preview() {
             data-testid="preview-canvas"
             aria-label="Кадр под плейхедом"
           />
+          {SHOW_FPS && <span ref={fpsRef} className={styles.fps} data-testid="preview-fps" />}
         </div>
         <div className={styles.transport}>
           <button onClick={() => player.home()} title="В начало (Home)" aria-label="В начало">

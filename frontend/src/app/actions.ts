@@ -5,8 +5,11 @@ import { planRippleTrack } from '@/model/ripple'
 import { neighborMarkerTime, planAddMarker, planDeleteMarkers, timelineMarkers } from '@/model/markers'
 import { trackInput } from '@/model/project'
 import { newTrackIndex } from '@/model/tracks'
-import type { TrackKind } from '@/shared/types.gen'
+import type { EffectPatch, TrackKind } from '@/shared/types.gen'
+import type { ApplyFxOp } from '@/model/applyEffectToMarkers'
 import type { CutOp } from '@/model/cutToMarkers'
+import { planEffectDrop, type EffectDropTarget } from '@/model/effects'
+import { OpsError } from '@/model/ops/errors'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { fitZoom, followPlayhead, timeToX } from '@/timeline/geometry'
@@ -169,4 +172,55 @@ export function snapSelectedEdgesToMarkers(): void {
 /** Сомкнуть пробелы между элементами дорожки (первый элемент остаётся на месте). */
 export function rippleTrack(trackId: string): void {
   useProject.getState().dispatch(planRippleTrack(project(), trackId), { label: 'Сомкнуть пробелы' })
+}
+
+/** Диалог «Эффект по маркерам» (docs/FRONTEND.md, фаза 4). */
+export function openFxDialog(effect = 'shake'): void {
+  ui().openFxDialog(effect)
+}
+
+/** Применить `applyEffectToMarkers`; новые эффекты fx-дорожки становятся выделением. */
+export function applyEffectToMarkers(op: ApplyFxOp): boolean {
+  const res = useProject.getState().dispatch([op], { label: 'Эффект по маркерам' })
+  if (res.ok) {
+    const p = project()
+    ui().select(res.created.filter((id) => id.startsWith('fx_') && findItem(p, id)))
+  }
+  return res.ok
+}
+
+/** Эффект из библиотеки брошен на таймлайн; ошибка (место занято) — в lastError стора проекта. */
+export function dropEffect(effectId: string, target: EffectDropTarget, t: number): boolean {
+  let ops
+  try {
+    ops = planEffectDrop(project(), effectId, target, t)
+  } catch (e) {
+    if (e instanceof OpsError) {
+      useProject.setState({ lastError: e.message })
+      return false
+    }
+    throw e
+  }
+  const res = useProject.getState().dispatch(ops, { label: 'Добавить эффект' })
+  if (!res.ok) return false
+  const fx = res.created.find((id) => id.startsWith('fx_'))
+  if (fx) {
+    if (typeof target === 'object' && 'clipId' in target) {
+      ui().select([target.clipId])
+      ui().inspectEffect(fx)
+    } else ui().select([fx])
+  }
+  return true
+}
+
+/** Правка эффекта из инспектора: непрерывный ввод (`mergeKey`) склеивается в одну запись истории. */
+export function updateEffect(effectId: string, patch: EffectPatch, mergeKey?: string): boolean {
+  return useProject.getState().dispatch([{ op: 'updateEffect', effectId, patch }], {
+    label: 'Правка эффекта',
+    ...(mergeKey ? { mergeKey: `fx-edit:${effectId}:${mergeKey}` } : {}),
+  }).ok
+}
+
+export function removeEffect(effectId: string): void {
+  useProject.getState().dispatch([{ op: 'removeEffect', effectId }], { label: 'Удалить эффект' })
 }

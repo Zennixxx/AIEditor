@@ -13,8 +13,8 @@
   - *source time* — позиция внутри исходного медиафайла.
   Поля называются явно: `start` (timeline), `sourceIn`/`sourceOut` (source), `t` у маркеров клипа — source time.
 - **Кадры:** UI квантует время к сетке `1 / project.fps` при привязке и экспорте. В JSON хранится уже квантованное значение.
-- **ID:** строки с префиксом + nanoid(10): `ast_…` ассет, `trk_…` дорожка, `clp_…` клип, `mrk_…` маркер, `fx_…` эффект, `sec_…` секция, `job_…` задача, `prj_…` проект. ID ассета детерминирован: `ast_` + первые 16 hex sha1(`абсолютный путь|размер|mtime`).
-- **Координаты кадра** нормализованы: `x, y` ∈ [-1, 1] от центра кадра (0,0 — центр), `scale` 1 = cover (кадр заполняет выход без полей), `rotation` в градусах.
+- **ID:** строки с префиксом + nanoid(10): `ast_…` ассет, `trk_…` дорожка, `clp_…` клип, `mrk_…` маркер, `fx_…` эффект, `sec_…` секция, `job_…` задача, `prj_…` проект, `pst_…` пресет эффектов. ID ассета детерминирован: `ast_` + первые 16 hex sha1(`абсолютный путь|размер|mtime`).
+- **Координаты кадра** нормализованы: `x, y` ∈ [-1, 1] от центра кадра (0,0 — центр; `x = 1` — правый край, `y = 1` — **нижний**, ось y вниз, как в AE), `scale` 1 = cover (кадр заполняет выход без полей), `rotation` в градусах по часовой стрелке. `anchorX/anchorY` — точка поворота и масштаба в координатах слоя (−1..1 от его центра); смещение якоря само по себе слой не двигает: точка слоя `q` попадает в `центр + (x, y) + A + R·scale·(q − A)`. Те же правила для `centerX/centerY` эффектов.
 - **Цвета** — `"#rrggbb"` или `"#rrggbbaa"`.
 - **Ошибки API:** HTTP 4xx/5xx с телом `{ "error": { "code": "snake_case", "message": "…", "details": {} } }`.
 - Все поля camelCase в JSON (на бэке Pydantic `alias_generator=to_camel`, `populate_by_name=True`).
@@ -146,6 +146,17 @@ interface Envelope {          // огибающая интенсивности 0
 6. `anchor.markerId` ссылается на существующий маркер; если маркер удалён — `anchor` снимается, эффект остаётся на месте.
 7. Порядок рендера: дорожки снизу вверх; эффект fx-дорожки применяется к композиту всех дорожек **ниже** неё (как adjustment layer).
 8. Секции одного списка (`project.sections` или `clip.sections`) отсортированы по `start`, не перекрываются, `start < end`; ID секций и маркеров уникальны во всём проекте. Секции клипа могут выходить за `[sourceIn, sourceOut]` — UI и макро-ops обрезают их по видимому диапазону.
+
+### 2.1 Интенсивность эффекта (огибающая)
+
+Одна формула для превью, экспорта и экспорта в AE. `D = effect.duration`, `τ` — время от начала эффекта; вне `[0, D)` интенсивность 0, выключенный эффект (`enabled: false`) не рендерится.
+
+- `A = min(attack, D)`, `H = min(hold, D − A)`, `R = min(decay, D − A − H)`; после `A + H + R` интенсивность 0 (если сумма меньше `D`).
+- атака `τ < A`: `p = τ / A`, `env = up(p)`; удержание: `env = 1`; затухание: `q = (τ − A − H) / R`, `env = down(q)`; нулевая фаза пропускается.
+- `curve`: `linear` — `up = p`, `down = 1 − q`; `easeOut` — `up = 1 − (1 − p)²`, `down = (1 − q)²`; `exp` (k = 5) — `up = (1 − e^(−k·p)) / (1 − e^(−k))`, `down = (e^(−k·q) − e^(−k)) / (1 − e^(−k))`.
+- `intensity = env × strength`, где `strength` — параметр эффекта (нет ключа в `params` — дефолт реестра; у переходов параметра нет — 1). Шейдер эффекта получает `intensity` (0..2) и масштабирует им своё действие (смесь с исходным кадром / амплитуду).
+- Отсутствующие в `params` ключи берутся из дефолтов реестра (§7); хранить все параметры необязательно.
+- Привязка `anchor` (обе стороны, после каждой транзакции): эффект, который в транзакции создан или изменён напрямую (`start`/`anchor`), остаётся на месте — пересчитывается `anchor.offset`; остальные привязанные эффекты ставятся в «время маркера на таймлайне + offset» (у эффекта клипа — минус `clip.start`). Маркер вне видимого диапазона клипа — эффект не двигается. Сдвинутый так эффект fx-дорожки, наехавший на следующий элемент, укорачивается до него.
 
 ## 3. Ассеты
 
@@ -325,7 +336,7 @@ interface OpsResult { ops: EditOp[]; explanation: string; warnings?: string[] }
 
 ### 6.2 Семантика макро-ops (фронт раскрывает их в примитивные ops внутри той же транзакции)
 
-Макро-op видит проект в состоянии после предыдущих ops списка. Любая ошибка отклоняет всю транзакцию. Бэк макро-ops не раскрывает (ИИ возвращает их как есть, фронт исполняет). `applyEffectToMarkers` — фаза 4.
+Макро-op видит проект в состоянии после предыдущих ops списка. Любая ошибка отклоняет всю транзакцию. Бэк макро-ops не раскрывает (ИИ возвращает их как есть, фронт исполняет).
 
 **Фильтр маркеров (`MarkerFilter`)** — общий для всех макро-ops:
 - источник: маркеры музыкального клипа (`musicClipId`; по умолчанию первый клип аудиодорожки с маркерами, иначе первый клип аудиодорожки), пересчитанные в timeline time; маркеры вне видимого диапазона клипа отбрасываются. Нет музыкального клипа — маркеры проекта (`project.markers`);
@@ -341,6 +352,17 @@ interface OpsResult { ops: EditOp[]; explanation: string; warnings?: string[] }
    - `bestMoments` — моменты `ClipAnalysis.moments` исходных клипов (обрезанные по диапазону клипа) по убыванию `score`; момент короче слота центрируется в окне, длиннее — берётся с начала; закончились моменты или анализа нет — как `sequential`.
    Если диапазона не хватает на `d`, кусок целиком растягивается замедлением (`speed < 1`); для картинок `sourceIn = 0`.
 4. Новый клип: `speed` 1 (кроме замедления выше), `reverse: false`, без `timeRemap`, эффектов, маркеров и секций; `transform`/`opacity` по умолчанию; `blendMode` и `color` — с исходного клипа, `volume` — только если это константа. Инварианты 1–5 выполняются.
+
+**`applyEffectToMarkers`**:
+1. `effect` — id из реестра, иначе `unknown_effect`. `params` проверяются по реестру (неизвестный ключ, число вне `min..max`, значение не из `options`, не тот тип) → `bad_value`; в эффект пишутся только переданные `params`. `duration` > 0 (по умолчанию `defaultDuration` эффекта), `envelope` — `defaultEnvelope` эффекта, поверх — переданные поля.
+2. Маркеры — по `MarkerFilter`; маркер ближе одного кадра проекта к предыдущему оставленному отбрасывается (как в `cutToMarkers`). Не осталось ни одного → `no_markers`.
+3. Длительность эффекта на маркере `i`: `dᵢ = min(duration, tᵢ₊₁ − tᵢ)` (последний — `duration`), так эффекты одного вызова не перекрываются.
+4. `scaleByStrength: true` — `params.strength = clamp(strength × marker.strength, min, max)`, где `strength` — переданный или дефолтный; у эффекта без параметра `strength` (переходы) флаг игнорируется.
+5. Цель:
+   - `{trackId}` — только `fx`-дорожка (`incompatible_track`; неизвестная — `track_not_found`); эффект `start = tᵢ`, `duration = dᵢ`. Любой существующий элемент дорожки, пересекающийся с `[tᵢ, tᵢ + dᵢ)`, → `slots_overlap`;
+   - `"newFxTrack"` — новая `fx`-дорожка поверх всех (в конец `project.tracks`), имя `"FX: <name эффекта>"`, туда — как в `{trackId}`;
+   - `"clipsUnderMarker"` — в `clip.effects` каждого клипа видеодорожек (включая скрытые), для которого `start ≤ tᵢ < start + duration`; `start = tᵢ − clip.start`, `duration = min(dᵢ, clip.start + clip.duration − tᵢ)`; эффект добавляется в конец `clip.effects`. Маркеры без клипа под собой пропускаются; ни одного эффекта → `no_markers`.
+6. Каждый эффект: новый `fx_`, `enabled: true`, `anchor = {markerId, clipId?: id музыкального клипа (нет для маркеров проекта), offset: 0}`.
 
 **`snapClipEdgesToMarkers`**: клипы обрабатываются слева направо; для начала, затем конца каждого клипа ищется ближайший отфильтрованный маркер на расстоянии ≤ `maxShift` (сек, ≥ 0); край сдвигается тримом (`updateClip`) в пределах соседей по дорожке, доступного исходника и минимума в 1 кадр (как ручной трим), поэтому цель может быть достигнута не полностью. Если конец одного выбранного клипа лежит впритык к началу следующего выбранного, стык сдвигается вместе (оба края к одному маркеру). Нет маркеров или сдвигать нечего — ops не создаются.
 
@@ -364,7 +386,7 @@ interface EffectDef {
 }
 ```
 
-Файл: `{ version: 1, effects: EffectDef[] }`. Параметр `strength` (если есть) — общий множитель силы, на него действует `scaleByStrength`.
+Файл: `{ version: 1, effects: EffectDef[] }`. Параметр `strength` (0..2, по умолчанию 1) есть у всех эффектов, кроме переходов: общий множитель интенсивности (§2.1), на него действует `scaleByStrength`.
 
 Стартовый набор (фаза 4): `shake`, `zoomPunch`, `panCrop`, `flicker`, `strobe`, `flash`, `rgbSplit`, `invert`, `zoomBlur`, `directionalBlur`, `glow`, `filmGrain`, `vignette`, `letterbox`, `contrastPunch`, `tilt3d`, `chromaWave`; переходы: `whipPan`, `zoomTransition`, `blurTransition`, `flashTransition`, `glitchTransition`. Параметры — в `shared/effects.json`.
 
@@ -374,7 +396,7 @@ interface EffectDef {
 
 | Метод | Путь | Тело / параметры | Ответ |
 |---|---|---|---|
-| GET | `/health` | — | `{status:"ok", version, schemaVersion, ffmpeg:bool, rife:bool, demucs:bool, gemini:bool}` |
+| GET | `/health` | — | `{status:"ok", version, schemaVersion, ffmpeg:bool, rife:bool, demucs:bool, gemini:bool, registryErrors?: string[]}` — `registryErrors` только если `shared/effects.json` / `styles.json` не прошли проверку при старте |
 | POST | `/assets/import` | `{paths: string[]}` | `{assets: Asset[], jobs: JobRef[]}` |
 | POST | `/assets/upload` | multipart `files[]` (для браузерного режима; файл копируется в `data/uploads`) | `{assets: Asset[], jobs: JobRef[]}` |
 | GET | `/assets` | — | `Asset[]` |
@@ -391,7 +413,8 @@ interface EffectDef {
 | POST | `/projects` | `{name, fps, width, height}` | `Project` |
 | GET | `/projects/{id}` | — | `Project` |
 | PUT | `/projects/{id}` | `Project` (с текущим `revision`) | `Project` (revision+1) или 409 при конфликте |
-| GET/POST | `/presets` | `EffectPreset` | список / созданный |
+| GET | `/presets` | — | `EffectPreset[]` (порядок создания) |
+| POST | `/presets` | `CreateEffectPresetRequest` `{name, description?, effects}` | `EffectPreset` с новым `id` (`pst_`) |
 | POST | `/ai/analyze-clip/{id}` | `{force?: bool}` | `JobRef` → `ClipAnalysis` |
 | POST | `/ai/analyze-music/{id}` | — | `JobRef` → `MusicAnalysis` (секции обогащены) |
 | POST | `/ai/command` | `AICommandRequest` | `OpsResult` |
@@ -456,6 +479,8 @@ interface EffectPreset {      // пользовательский пресет-�
   id: string; name: string; description?: string;
   effects: { effect: string; start: number; duration: number; params: Record<string, unknown>; envelope: Envelope }[]; // start — от точки применения
 }
+
+interface CreateEffectPresetRequest { name: string; description?: string; effects: EffectPreset["effects"] } // POST /presets
 ```
 
 ### 8.1 Импорт и готовность ассета
@@ -482,6 +507,7 @@ interface EffectPreset {      // пользовательский пресет-�
 | `POST /analysis/…/{id}`, `/assets/{id}/stems` | 404 | `asset_not_found` | — |
 | | 422 | `no_audio` | у ассета нет звука (изображение, видео без аудио) |
 | `POST /assets/{id}/stems`, `POST /analysis/music/{id}` с `useStems: true` | 501 | `demucs_not_installed` | — |
+| `POST /presets` | 422 | `invalid_preset` | `errors: string[]` — неизвестный эффект или параметр, значение вне диапазона / не из `options` / не того типа |
 | любой | 422 | `validation_error` | ошибки валидации |
 
 Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`.

@@ -62,6 +62,13 @@ function Toolbar() {
         Нарезать
       </button>
       <button
+        onClick={() => actions.openFxDialog()}
+        title="Поставить эффект на маркеры (шейк на каждый бас…)"
+        data-testid="fx-open"
+      >
+        Эффект
+      </button>
+      <button
         onClick={actions.snapSelectedEdgesToMarkers}
         disabled={selection.length === 0}
         title="Подтянуть края выделенных клипов к ближайшим видимым маркерам"

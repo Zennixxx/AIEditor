@@ -124,10 +124,15 @@ data/presets.json
 
 ## Фаза 4 — Пресеты эффектов
 
-- [ ] `GET /presets` → `EffectPreset[]` из `data/presets.json` (`{version, presets}`; файла нет → пустой список); `POST /presets` → созданный пресет с `id` (атомарная запись).
-- [ ] Валидация пресета: каждый `effect` существует в `shared/effects.json`, параметры — известные ключи в диапазонах `min..max`, `enum` — из `options`; ошибка → 422 `invalid_preset` с перечнем в `details`.
-- [ ] При старте: `shared/effects.json` и `shared/styles.json` валидируются (уникальные id, дефолты в диапазонах, эффекты стилей существуют в реестре); ошибка — в лог и в `/health` не роняет сервер.
-- [ ] Тесты: CRUD пресетов, отказ на неизвестном эффекте/параметре вне диапазона.
+- [x] `GET /presets` → `EffectPreset[]` из `data/presets.json` (`{version, presets}`; файла нет → пустой список); `POST /presets` → созданный пресет с `id` (атомарная запись).
+- [x] Валидация пресета: каждый `effect` существует в `shared/effects.json`, параметры — известные ключи в диапазонах `min..max`, `enum` — из `options`; ошибка → 422 `invalid_preset` с перечнем в `details`.
+- [x] При старте: `shared/effects.json` и `shared/styles.json` валидируются (уникальные id, дефолты в диапазонах, эффекты стилей существуют в реестре); ошибка — в лог и в `/health` не роняет сервер.
+- [x] Тесты: CRUD пресетов, отказ на неизвестном эффекте/параметре вне диапазона.
+
+✅ Фаза 4 бэка закрыта 2026-10-05: pytest (104) / ruff / pyright зелёные. Детали:
+- `effects/registry.py` — загрузка и проверка `effects.json` / `styles.json` (`Settings.aieditor_shared_dir`), правила значений параметров (число в `min..max`, boolean, цвет `#rrggbb[aa]`, enum из `options`) — общие для старта и пресетов. Ошибки — в лог и `/health.registryErrors`.
+- `storage/presets_repo.py` — `data/presets.json` `{version, presets}`, атомарная запись под блокировкой, прочие ключи файла сохраняются (место под стили фазы 7.6); битый файл переносится в `presets.broken-<время>.json`.
+- `POST /presets` принимает `CreateEffectPresetRequest`, id `pst_…`; 422 `invalid_preset` (`details.errors`). Контракт v1.5.
 
 ## Фаза 5 — Интерполяция (RIFE)
 

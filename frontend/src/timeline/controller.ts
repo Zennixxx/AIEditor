@@ -1,10 +1,13 @@
 // Инструменты взаимодействия с таймлайном: скраб, выделение (клик/рамка), перемещение, трим, лезвие,
 // drop ассета из Media Bin, зум/скролл. Состояние жестов — здесь; проект меняется только через dispatch.
+import { dropEffect } from '@/app/actions'
 import { planAssetDrop, planMove, planTrim, pickTrackForAsset, type ItemMove } from '@/model/edit'
+import type { EffectDropTarget } from '@/model/effects'
 import { isClip } from '@/model/lookup'
 import { isMarkerVisible, markerOrigins, planMoveMarkers, type MarkerOrigin } from '@/model/markers'
 import { timelineSections, type TimelineSection } from '@/model/sections'
 import { assetClipDuration } from '@/model/project'
+import { getEffectDef } from '@/shared/effects-registry'
 import { collectSnapTargets, snapPoint, snapSpan, snapThreshold, type SnapTarget } from '@/model/snapping'
 import { snapToFrame } from '@/shared/time'
 import type { Project, Track, TrackItem } from '@/shared/types.gen'
@@ -529,6 +532,47 @@ export class TimelineController {
       // новый аудиоклип: сразу запускаем анализ музыки (или применяем готовый)
       if (plan.asset.kind === 'audio') autoAnalyzeClips(clips)
     }
+  }
+
+  // --- drop эффекта из библиотеки ---
+
+  private effectDropPlan(x: number, y: number, effectId: string, shift: boolean) {
+    const def = getEffectDef(effectId)
+    if (!def) return null
+    const v = this.view()
+    this.dropTargets ??= this.targets([])
+    const snapped = snapPoint(Math.max(0, xToTime(x, v)), this.dropTargets, this.snapOpts(shift))
+    const hit = hitTest(this.rows(), v, x, y)
+    let target: EffectDropTarget = 'newFxTrack'
+    let trackId: string | null = null
+    if (hit.area === 'item' && isClip(hit.item) && hit.row.track.kind === 'video') {
+      target = { clipId: hit.item.id }
+      trackId = hit.row.track.id
+    } else if ((hit.area === 'item' || hit.area === 'track') && hit.row.track.kind === 'fx') {
+      target = { trackId: hit.row.track.id }
+      trackId = hit.row.track.id
+    }
+    return { def, target, trackId, t: snapped.value, snapAt: snapped.snappedAt }
+  }
+
+  effectDragOver(x: number, y: number, effectId: string, shift: boolean): boolean {
+    const plan = this.effectDropPlan(x, y, effectId, shift)
+    if (!plan) return false
+    this.overlay.dropGhost = {
+      start: plan.t,
+      duration: plan.def.defaultDuration,
+      trackId: plan.trackId,
+      label: plan.def.name,
+    }
+    this.overlay.snapAt = plan.snapAt
+    this.host.redraw()
+    return true
+  }
+
+  effectDrop(x: number, y: number, effectId: string, shift: boolean): void {
+    const plan = this.effectDropPlan(x, y, effectId, shift)
+    this.dragLeave()
+    if (plan) dropEffect(effectId, plan.target, plan.t)
   }
 
   dragLeave(): void {

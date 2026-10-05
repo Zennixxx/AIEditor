@@ -5,7 +5,7 @@ import { useAssets } from '@/store/assets'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { TimelineController, type PointerInfo } from './controller'
-import { ASSET_DND_TYPE } from './dnd'
+import { ASSET_DND_TYPE, EFFECT_DND_TYPE } from './dnd'
 import { followPlayhead, layoutTracks } from './geometry'
 import { DEFAULT_PALETTE, drawTimeline, type MediaSource, type Palette } from './render'
 import styles from './Timeline.module.css'
@@ -51,6 +51,15 @@ export function Timeline() {
   const selectionCount = useUi((s) => s.selection.length)
   const rows = useMemo(() => layoutTracks(project), [project])
   const clipCount = useMemo(() => [...allClips(project)].length, [project])
+  // эффекты: элементы fx-дорожек + эффекты внутри клипов
+  const effectCount = useMemo(
+    () =>
+      project.tracks.reduce(
+        (n, t) => n + t.items.reduce((k, i) => k + (i.type === 'effect' ? 1 : i.effects.length), 0),
+        0,
+      ),
+    [project],
+  )
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -187,6 +196,10 @@ export function Timeline() {
     if (!e.dataTransfer.types.includes(ASSET_DND_TYPE)) return null
     return useUi.getState().draggingAssetId
   }
+  const dragEffect = (e: ReactDragEvent) => {
+    if (!e.dataTransfer.types.includes(EFFECT_DND_TYPE)) return null
+    return useUi.getState().draggingEffect
+  }
   const local = (e: ReactDragEvent) => {
     const r = canvasRef.current!.getBoundingClientRect()
     return { x: e.clientX - r.left, y: e.clientY - r.top }
@@ -197,6 +210,7 @@ export function Timeline() {
       className={styles.timeline}
       data-testid="timeline"
       data-clip-count={clipCount}
+      data-effect-count={effectCount}
       data-selection-count={selectionCount}
     >
       <TrackHeaders rows={rows} scrollY={scrollY} />
@@ -204,16 +218,28 @@ export function Timeline() {
         ref={wrapRef}
         className={styles.canvasWrap}
         onDragOver={(e) => {
-          const id = dragAsset(e)
-          if (!id || !ctrlRef.current) return
+          if (!ctrlRef.current) return
           const { x, y } = local(e)
-          if (ctrlRef.current.dragOver(x, y, id, e.shiftKey)) {
+          const fx = dragEffect(e)
+          const id = fx ? null : dragAsset(e)
+          const ok = fx
+            ? ctrlRef.current.effectDragOver(x, y, fx, e.shiftKey)
+            : !!id && ctrlRef.current.dragOver(x, y, id, e.shiftKey)
+          if (ok) {
             e.preventDefault()
             e.dataTransfer.dropEffect = 'copy'
           }
         }}
         onDragLeave={() => ctrlRef.current?.dragLeave()}
         onDrop={(e) => {
+          const fx = e.dataTransfer.getData(EFFECT_DND_TYPE) || dragEffect(e)
+          if (fx && ctrlRef.current) {
+            e.preventDefault()
+            const { x, y } = local(e)
+            ctrlRef.current.effectDrop(x, y, fx, e.shiftKey)
+            useUi.getState().setDraggingEffect(null)
+            return
+          }
           const id = e.dataTransfer.getData(ASSET_DND_TYPE) || dragAsset(e)
           if (!id || !ctrlRef.current) return
           e.preventDefault()

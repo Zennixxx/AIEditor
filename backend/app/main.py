@@ -11,13 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.audio.analysis import MusicAnalysisService
 from app.config import VERSION, Settings, ffmpeg_bin, get_settings, rife_bin
+from app.effects.registry import load_registry
 from app.errors import install_error_handlers
 from app.jobs.events import EventHub
 from app.jobs.manager import RESOURCE_LIMITS, JobManager
 from app.media.pipeline import MediaService
-from app.routers import analysis, assets, debug, health, jobs, projects, ws
+from app.routers import analysis, assets, debug, health, jobs, presets, projects, ws
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
+from app.storage.presets_repo import PresetsRepo
 from app.storage.projects_repo import ProjectsRepo
 from app.video.analysis import ClipAnalysisService
 
@@ -53,6 +55,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.assets = AssetsRepo(paths)
         app.state.assets.load_all()
         app.state.projects = ProjectsRepo(paths)
+        app.state.registry = load_registry(settings.aieditor_shared_dir)
+        app.state.presets = PresetsRepo(paths)
         app.state.analysis = MusicAnalysisService(settings, paths, app.state.assets, app.state.jobs)
         app.state.clip_analysis = ClipAnalysisService(settings, paths, app.state.assets, app.state.jobs)
         app.state.media = MediaService(
@@ -89,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(assets.router)
     api.include_router(analysis.router)
     api.include_router(projects.router)
+    api.include_router(presets.router)
     api.include_router(ws.router)
     if settings.aieditor_debug:
         api.include_router(debug.router)
