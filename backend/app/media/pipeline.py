@@ -32,6 +32,7 @@ from app.models.gen import Asset, AssetDerived, JobKind, JobRef, WsAsset
 from app.storage import atomic
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
+from app.video.analysis import ClipAnalysisService
 
 log = logging.getLogger(__name__)
 
@@ -59,8 +60,15 @@ type StepFn = Callable[[JobContext, Tools, MediaInfo, str], Awaitable[Any]]
 
 class MediaService:
     def __init__(
-        self, settings: Settings, paths: DataPaths, repo: AssetsRepo, jobs: JobManager, hub: EventHub
+        self,
+        settings: Settings,
+        paths: DataPaths,
+        repo: AssetsRepo,
+        jobs: JobManager,
+        hub: EventHub,
+        clip_analysis: ClipAnalysisService | None = None,
     ):
+        self.clip_analysis = clip_analysis
         self.settings = settings
         self.paths = paths
         self.repo = repo
@@ -144,6 +152,10 @@ class MediaService:
 
     async def resume(self) -> None:
         """При старте: досоздать производные для ассетов, импорт которых прервался."""
+        if self.clip_analysis is not None:
+            for a in self.repo.list():
+                if a.status == "ready" and self.clip_analysis.wanted(a):
+                    self.clip_analysis.start(a)
         pending = [a for a in self.repo.list() if a.status == "importing"]
         if not pending:
             return
@@ -195,6 +207,9 @@ class MediaService:
                 depends_on=job_ids[-1:],
             )
             job_ids.append(job.id)
+            if kind == "proxy" and self.clip_analysis is not None:
+                # локальный анализ идёт параллельно цепочке и не влияет на статус ассета
+                self.clip_analysis.start(asset, depends_on=[job.id])
         self._active[asset.id] = job_ids
         watcher = asyncio.create_task(self._watch(asset.id, info, job_ids), name=f"watch-{asset.id}")
         self._watchers.add(watcher)

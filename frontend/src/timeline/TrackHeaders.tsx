@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { removeTrack } from '@/app/actions'
+import { removeTrack, rippleTrack } from '@/app/actions'
+import { hasGaps } from '@/model/ripple'
 import { planTrackMove, trackGroup } from '@/model/tracks'
 import type { EditOp, Track } from '@/shared/types.gen'
 import { useProject } from '@/store/project'
@@ -34,6 +35,8 @@ export function TrackHeaders({ rows, scrollY }: { rows: readonly TrackRow[]; scr
   const [editing, setEditing] = useState<string | null>(null)
   const [drag, setDrag] = useState<{ id: string; target: number; y: number } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const project = useProject((s) => s.project)
+  const gaps = new Set(rows.filter((r) => hasGaps(project, r.track.id)).map((r) => r.track.id))
 
   const startReorder = (row: TrackRow, e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
@@ -150,6 +153,15 @@ export function TrackHeaders({ rows, scrollY }: { rows: readonly TrackRow[]; scr
                     title="Заблокировать"
                     onClick={() => setFlag(t, 'locked')}
                   />
+                  <button
+                    className={styles.toggle}
+                    title="Сомкнуть пробелы между элементами дорожки"
+                    disabled={t.locked || !gaps.has(t.id)}
+                    onClick={() => rippleTrack(t.id)}
+                    data-testid={`ripple-${t.name}`}
+                  >
+                    ⇥
+                  </button>
                   <button
                     className={styles.iconButton}
                     title="Удалить дорожку"

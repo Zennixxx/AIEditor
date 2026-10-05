@@ -5,6 +5,7 @@ import { Preview } from '@/panels/Preview'
 import { player } from '@/playback/player'
 import { startBackendMonitor } from '@/store/backend'
 import { startDataSync } from '@/store/sync'
+import { CutDialog } from '@/timeline/CutDialog'
 import { TimelinePanel } from '@/timeline/TimelinePanel'
 import styles from './App.module.css'
 import { SplitPane } from './SplitPane'
@@ -30,6 +31,7 @@ export function App() {
           <TimelinePanel />
         </SplitPane>
       </main>
+      <CutDialog />
     </div>
   )
 }

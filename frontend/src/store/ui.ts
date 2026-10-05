@@ -36,6 +36,8 @@ interface UiState {
   focusMarkerId: string | null
   /** Ассет, который сейчас тащат из Media Bin (dataTransfer недоступен в dragover). */
   draggingAssetId: string | null
+  /** Открыт диалог «Нарезать по маркерам». */
+  cutDialogOpen: boolean
 
   select: (ids: string[]) => void
   selectMarkers: (ids: string[]) => void
@@ -51,6 +53,7 @@ interface UiState {
   toggleSolo: (trackId: string) => void
   setClipboard: (entries: ClipboardEntry[]) => void
   setDraggingAsset: (id: string | null) => void
+  setCutDialogOpen: (open: boolean) => void
 }
 
 export function clampZoom(pxPerSec: number): number {
@@ -74,6 +77,7 @@ export const useUi = create<UiState>()((set, get) => ({
   markerVisibility: DEFAULT_VISIBILITY,
   focusMarkerId: null,
   draggingAssetId: null,
+  cutDialogOpen: false,
 
   select: (ids) => set({ selection: [...new Set(ids)] }),
   selectMarkers: (ids) => set({ markerSelection: [...new Set(ids)] }),
@@ -95,4 +99,5 @@ export const useUi = create<UiState>()((set, get) => ({
   },
   setClipboard: (clipboard) => set({ clipboard }),
   setDraggingAsset: (draggingAssetId) => set({ draggingAssetId }),
+  setCutDialogOpen: (cutDialogOpen) => set({ cutDialogOpen }),
 }))

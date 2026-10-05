@@ -368,7 +368,7 @@ describe('applyOps', () => {
     expectReject(p, [{ op: 'explode' } as unknown as EditOp], 'unknown_op')
     expectReject(
       p,
-      [{ op: 'cutToMarkers', clipIds: ['clp_a'], filter: {}, order: 'sequential' }],
+      [{ op: 'applyEffectToMarkers', effect: 'shake', filter: {}, target: 'newFxTrack' }],
       'not_implemented',
     )
     expectReject(p, [{ op: 'moveClip', clipId: 'tmp_x', start: 0 }], 'unknown_temp_id')

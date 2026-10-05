@@ -14,6 +14,7 @@ function Toolbar() {
   const fps = useProject((s) => s.project.fps)
   const undoable = useProject(canUndo)
   const redoable = useProject(canRedo)
+  const selection = useUi((s) => s.selection)
   const setTool = useUi((s) => s.setTool)
 
   return (
@@ -53,6 +54,21 @@ function Toolbar() {
       </button>
       <span className={styles.sep} />
       <MarkerFilter />
+      <button
+        onClick={actions.openCutDialog}
+        title="Нарезать выбранные клипы по маркерам"
+        data-testid="cut-open"
+      >
+        Нарезать
+      </button>
+      <button
+        onClick={actions.snapSelectedEdgesToMarkers}
+        disabled={selection.length === 0}
+        title="Подтянуть края выделенных клипов к ближайшим видимым маркерам"
+        data-testid="snap-edges"
+      >
+        К маркерам
+      </button>
       <span className={styles.sep} />
       <button onClick={() => actions.addTrack('video')} title="Добавить видеодорожку">
         +V

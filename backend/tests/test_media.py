@@ -170,8 +170,8 @@ def test_import_video_creates_all_derived(client: TestClient, settings: Any, med
     seen = [set(e["derived"]) for e in asset_events]
     for key in ("proxy", "thumbs", "audio", "waveform"):
         assert any(key in s for s in seen), key
-    # WS job: у каждого шага цепочки есть событие done, задачи kind "import" нет
-    assert set(job_events) == {"proxy", "thumbs", "audio", "waveform"}
+    # WS job: у каждого шага цепочки (и локального анализа клипа) есть событие done, задачи kind "import" нет
+    assert set(job_events) == {"proxy", "thumbs", "audio", "waveform", "clipAnalysis"}
     for kind, events in job_events.items():
         assert events[-1]["status"] == "done", kind
         assert all(e["assetId"] == aid for e in events)

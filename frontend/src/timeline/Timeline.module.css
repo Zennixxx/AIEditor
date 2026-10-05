@@ -120,9 +120,15 @@
   color: var(--text);
 }
 
-.iconButton:hover {
+.iconButton:hover:not(:disabled) {
   color: var(--err);
   border-color: var(--err);
+}
+
+.toggle:disabled,
+.iconButton:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .dropLine {

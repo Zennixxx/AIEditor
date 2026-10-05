@@ -13,7 +13,7 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 export function handleHotkey(e: KeyboardEvent): boolean {
-  if (isTyping(e.target)) return false
+  if (isTyping(e.target) || useUi.getState().cutDialogOpen) return false // модальный диалог владеет клавиатурой
   const mod = e.ctrlKey || e.metaKey
   const key = e.key.toLowerCase()
   // e.code — чтобы работало в любой раскладке (Ctrl+K в русской = Ctrl+Л)

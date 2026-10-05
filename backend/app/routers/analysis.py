@@ -7,8 +7,9 @@ from fastapi import APIRouter, Request
 from app.audio.analysis import MusicAnalysisService
 from app.errors import ApiException
 from app.ids import ASSET_ID_RE
-from app.models.gen import Asset, JobRef, MusicAnalysis, MusicAnalysisParamsInput
+from app.models.gen import Asset, ClipAnalysis, JobRef, MusicAnalysis, MusicAnalysisParamsInput
 from app.storage.assets_repo import AssetsRepo
+from app.video.analysis import ClipAnalysisService
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -36,4 +37,14 @@ async def get_music_analysis(asset_id: str, request: Request) -> MusicAnalysis:
     analysis = service.get(asset_id)
     if analysis is None:
         raise ApiException(404, "analysis_not_found", f"Анализ музыки для {asset_id} ещё не выполнен")
+    return analysis
+
+
+@router.get("/clip/{asset_id}", response_model=ClipAnalysis, response_model_exclude_none=True)
+async def get_clip_analysis(asset_id: str, request: Request) -> ClipAnalysis:
+    _asset(request, asset_id)
+    service: ClipAnalysisService = request.app.state.clip_analysis
+    analysis = service.get(asset_id)
+    if analysis is None:
+        raise ApiException(404, "analysis_not_found", f"Анализ клипа для {asset_id} ещё не выполнен")
     return analysis

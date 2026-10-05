@@ -1,9 +1,10 @@
 // Применение edit-ops (CONTRACT §6) одной атомарной транзакцией.
-// Все примитивные ops; макро-ops (applyEffectToMarkers, cutToMarkers, snapClipEdgesToMarkers) — фазы 3–4.
+// Все примитивные ops и макро-ops cutToMarkers / snapClipEdgesToMarkers (CONTRACT §6.2); applyEffectToMarkers — фаза 4.
 import { current, isDraft, produce, type Draft } from 'immer'
 import type {
   Asset,
   Clip,
+  ClipAnalysis,
   EditOp,
   EffectAnchor,
   EffectItem,
@@ -19,10 +20,12 @@ import { getEffectDef } from '@/shared/effects-registry'
 import { isTempId, newId, type IdPrefix } from '@/shared/ids'
 import { EPS, effectiveSourceOut, itemEnd } from '../clipTime'
 import { splitClipData } from '../clipEdit'
+import { expandCutToMarkers } from '../cutToMarkers'
 import { checkInvariants } from '../invariants'
 import { findClip, findEffect, findMarker, findTrack, collectIds, isClip, trackAcceptsAsset } from '../lookup'
 import { finalizeProject } from '../project'
 import { SECTION_LABELS, sectionListError } from '../sections'
+import { expandSnapClipEdges } from '../snapClipEdges'
 import { integral } from '../timeRemap'
 import { OpsError } from './errors'
 
@@ -33,6 +36,8 @@ export interface ApplyContext {
   resolveAsset?: (assetId: string) => Asset | undefined
   /** Генератор ID (в тестах — детерминированный). */
   newId?: (prefix: IdPrefix) => string
+  /** Анализ клипа по ассету — для `cutToMarkers` с `order: "bestMoments"`. */
+  clipAnalysis?: (assetId: string) => ClipAnalysis | undefined
 }
 
 export interface ApplyOutcome {
@@ -230,15 +235,27 @@ class Tx {
         this.release(ref.effect.id)
         return
       }
-      case 'applyEffectToMarkers':
       case 'cutToMarkers':
+        return this.expand(expandCutToMarkers(this.snapshot(), op, this.ctx))
       case 'snapClipEdgesToMarkers':
+        return this.expand(expandSnapClipEdges(this.snapshot(), op))
+      case 'applyEffectToMarkers':
         throw new OpsError('not_implemented', `Макро-op ${op.op} пока не поддерживается`)
       default: {
         const unknown = op as { op?: unknown }
         throw new OpsError('unknown_op', `Неизвестный op ${String(unknown.op)}`)
       }
     }
+  }
+
+  /** Состояние проекта на момент макро-op (с учётом предыдущих ops списка). */
+  private snapshot(): Project {
+    return isDraft(this.p) ? current(this.p) : this.p
+  }
+
+  /** Макро-op раскрыт в примитивные ops — выполняем их в этой же транзакции. */
+  private expand(ops: readonly EditOp[]): void {
+    for (const op of ops) this.apply(op)
   }
 
   private addTrack(input: Extract<EditOp, { op: 'addTrack' }>['track'], index?: number): void {

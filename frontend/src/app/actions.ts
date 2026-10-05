@@ -1,10 +1,12 @@
 // Команды редактора — общие для горячих клавиш и кнопок. Логика изменений — в model/, здесь только связка со сторами.
 import { copyItems, planDelete, planPaste, planSplitAt } from '@/model/edit'
-import { findItem, findMarker } from '@/model/lookup'
+import { findClip, findItem, findMarker } from '@/model/lookup'
+import { planRippleTrack } from '@/model/ripple'
 import { neighborMarkerTime, planAddMarker, planDeleteMarkers, timelineMarkers } from '@/model/markers'
 import { trackInput } from '@/model/project'
 import { newTrackIndex } from '@/model/tracks'
 import type { TrackKind } from '@/shared/types.gen'
+import type { CutOp } from '@/model/cutToMarkers'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { fitZoom, followPlayhead, timeToX } from '@/timeline/geometry'
@@ -126,4 +128,45 @@ export function zoomFit(): void {
 
 export function toggleSnap(): void {
   ui().setSnap(!ui().snapEnabled)
+}
+
+/** Диалог «Нарезать по маркерам» (docs/FRONTEND.md, фаза 3). */
+export function openCutDialog(): void {
+  ui().setCutDialogOpen(true)
+}
+
+/** Применить `cutToMarkers`; новые клипы становятся выделением. */
+export function cutToMarkers(op: CutOp): boolean {
+  const res = useProject.getState().dispatch([op], { label: 'Нарезать по маркерам' })
+  if (res.ok) ui().select(res.created.filter((id) => id.startsWith('clp_')))
+  return res.ok
+}
+
+/** Максимальный сдвиг края клипа при «К маркерам», сек. */
+export const SNAP_EDGES_MAX_SHIFT = 0.25
+
+/**
+ * Края выделенных клипов — к ближайшим видимым маркерам (виды и порог — из фильтра видимости
+ * маркеров, но не шире, чем показывает таймлайн).
+ */
+export function snapSelectedEdgesToMarkers(): void {
+  const clipIds = liveSelection().filter((id) => findClip(project(), id))
+  if (clipIds.length === 0) return
+  const { kinds, minStrength } = ui().markerVisibility
+  useProject.getState().dispatch(
+    [
+      {
+        op: 'snapClipEdgesToMarkers',
+        clipIds,
+        filter: { kinds: [...kinds], minStrength },
+        maxShift: SNAP_EDGES_MAX_SHIFT,
+      },
+    ],
+    { label: 'Края клипов к маркерам' },
+  )
+}
+
+/** Сомкнуть пробелы между элементами дорожки (первый элемент остаётся на месте). */
+export function rippleTrack(trackId: string): void {
+  useProject.getState().dispatch(planRippleTrack(project(), trackId), { label: 'Сомкнуть пробелы' })
 }

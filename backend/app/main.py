@@ -19,6 +19,7 @@ from app.routers import analysis, assets, debug, health, jobs, projects, ws
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
 from app.storage.projects_repo import ProjectsRepo
+from app.video.analysis import ClipAnalysisService
 
 log = logging.getLogger("app")
 
@@ -53,7 +54,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.assets.load_all()
         app.state.projects = ProjectsRepo(paths)
         app.state.analysis = MusicAnalysisService(settings, paths, app.state.assets, app.state.jobs)
-        app.state.media = MediaService(settings, paths, app.state.assets, app.state.jobs, hub)
+        app.state.clip_analysis = ClipAnalysisService(settings, paths, app.state.assets, app.state.jobs)
+        app.state.media = MediaService(
+            settings, paths, app.state.assets, app.state.jobs, hub, app.state.clip_analysis
+        )
         log.info(
             "AIEditor backend %s, data=%s, ffmpeg=%s, rife=%s",
             VERSION,
