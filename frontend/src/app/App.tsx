@@ -3,13 +3,17 @@ import { Inspector } from '@/panels/Inspector'
 import { MediaBin } from '@/panels/MediaBin'
 import { Preview } from '@/panels/Preview'
 import { startBackendMonitor } from '@/store/backend'
+import { startDataSync } from '@/store/sync'
 import { TimelinePanel } from '@/timeline/TimelinePanel'
 import styles from './App.module.css'
 import { SplitPane } from './SplitPane'
+import { installHotkeys } from './hotkeys'
 import { TopBar } from './TopBar'
 
 export function App() {
   useEffect(() => startBackendMonitor(), [])
+  useEffect(() => startDataSync(), [])
+  useEffect(() => installHotkeys(), [])
 
   return (
     <div className={styles.app}>

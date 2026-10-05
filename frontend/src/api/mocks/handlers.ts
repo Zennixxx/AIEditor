@@ -1,7 +1,7 @@
 // MSW-моки API бэка (CONTRACT §8) поверх shared/fixtures.
 // Долгие операции имитируются задачами с прогрессом через WS-события.
 import { delay, http, HttpResponse, ws } from 'msw'
-import type { Asset, Job, JobKind, Project, ProjectListItem, WsEvent } from '@/shared/types.gen'
+import type { Asset, Job, JobKind, Project, ProjectListItem, Thumbs, WsEvent } from '@/shared/types.gen'
 import { newId } from '@/shared/ids'
 import { API_BASE, WS_URL } from '../config'
 import { clone, fixtures } from './fixtures'
@@ -57,41 +57,121 @@ function runJob(
   return job
 }
 
+/** Задачи по цепочке (как на бэке, docs/BACKEND.md): каждая следующая стартует после предыдущей. */
+function runChain(steps: { kind: JobKind; durationMs: number; onDone: () => void }[], assetId: string): void {
+  const [first, ...rest] = steps
+  if (!first) return
+  runJob(first.kind, {
+    assetId,
+    durationMs: first.durationMs,
+    onDone: () => {
+      first.onDone()
+      runChain(rest, assetId)
+    },
+  })
+}
+
 function importAsset(name: string, path: string): { asset: Asset; job: Job } {
   const isAudio = /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(name)
+  const isImage = /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
   const id = 'ast_' + newId('x', 16).slice(2)
   const base = `/api/assets/${id}`
   const asset: Asset = {
     id,
-    kind: isAudio ? 'audio' : 'video',
+    kind: isAudio ? 'audio' : isImage ? 'image' : 'video',
     name,
     path,
-    duration: isAudio ? 96 : 10,
-    hasAudio: true,
-    codec: isAudio ? 'mp3' : 'h264',
+    duration: isAudio ? 96 : isImage ? 0 : 10,
+    hasAudio: !isImage,
+    codec: isAudio ? 'mp3' : isImage ? 'png' : 'h264',
     browserDecodable: true,
     status: 'importing',
     derived: {},
-    ...(isAudio ? {} : { width: 1920, height: 1080, fps: 30 }),
+    ...(isAudio ? {} : isImage ? { width: 1920, height: 1080 } : { width: 1920, height: 1080, fps: 30 }),
   }
   assets.set(id, asset)
+  const publish = (derived: Partial<Asset['derived']>) => {
+    asset.derived = { ...asset.derived, ...derived }
+    broadcast({ type: 'asset', asset: clone(asset) })
+  }
+  const chain: Parameters<typeof runChain>[0] = isAudio
+    ? [
+        {
+          kind: 'waveform',
+          durationMs: 800,
+          onDone: () => publish({ audio: `${base}/audio.m4a`, waveform: `${base}/waveform.json` }),
+        },
+      ]
+    : isImage
+      ? []
+      : [
+          {
+            kind: 'proxy',
+            durationMs: 1500,
+            onDone: () => publish({ proxy: `${base}/proxy.mp4`, audio: `${base}/audio.m4a` }),
+          },
+          { kind: 'thumbs', durationMs: 800, onDone: () => publish({ thumbs: `${base}/thumbs.json` }) },
+          { kind: 'waveform', durationMs: 600, onDone: () => publish({ waveform: `${base}/waveform.json` }) },
+        ]
+  // import = ffprobe: после него известны длительность и параметры, ассет готов к работе
   const job = runJob('import', {
     assetId: id,
+    durationMs: 600,
     result: () => clone(asset),
     onDone: () => {
       asset.status = 'ready'
-      asset.derived = isAudio
-        ? { audio: `${base}/audio.m4a`, waveform: `${base}/waveform.json` }
-        : {
-            proxy: `${base}/proxy.mp4`,
-            thumbs: `${base}/thumbs.json`,
-            audio: `${base}/audio.m4a`,
-            waveform: `${base}/waveform.json`,
-          }
-      broadcast({ type: 'asset', asset: clone(asset) })
+      publish({})
+      runChain(chain, id)
     },
   })
   return { asset: clone(asset), job }
+}
+
+const TILE_W = 160
+const TILE_H = 90
+const ATLAS_COLUMNS = 10
+
+/** thumbs.json для ассета: фикстура для демо-ассета, для остальных — 1 кадр/с, атласы 10×10. */
+function thumbsFor(asset: Asset): Thumbs {
+  if (fixtures.thumbs.sprites[0]?.includes(asset.id)) return fixtures.thumbs
+  const count = Math.max(1, Math.ceil(asset.duration))
+  const per = ATLAS_COLUMNS * ATLAS_COLUMNS
+  return {
+    interval: 1,
+    tileWidth: TILE_W,
+    tileHeight: TILE_H,
+    columns: ATLAS_COLUMNS,
+    count,
+    sprites: Array.from(
+      { length: Math.ceil(count / per) },
+      (_, i) => `/api/assets/${asset.id}/thumbs/${i}.jpg`,
+    ),
+  }
+}
+
+/** Синтетический JPG-атлас: цветные плитки с номером кадра (только в браузере — нужен OffscreenCanvas). */
+async function renderAtlas(assetId: string, sprite: number): Promise<Blob | null> {
+  if (typeof OffscreenCanvas === 'undefined') return null
+  const canvas = new OffscreenCanvas(TILE_W * ATLAS_COLUMNS, TILE_H * ATLAS_COLUMNS)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  let hash = 0
+  for (const ch of assetId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  for (let i = 0; i < ATLAS_COLUMNS * ATLAS_COLUMNS; i++) {
+    const index = sprite * ATLAS_COLUMNS * ATLAS_COLUMNS + i
+    const x = (i % ATLAS_COLUMNS) * TILE_W
+    const y = Math.floor(i / ATLAS_COLUMNS) * TILE_H
+    const hue = (hash + index * 23) % 360
+    const g = ctx.createLinearGradient(x, y, x + TILE_W, y + TILE_H)
+    g.addColorStop(0, `hsl(${hue} 55% 38%)`)
+    g.addColorStop(1, `hsl(${(hue + 40) % 360} 60% 18%)`)
+    ctx.fillStyle = g
+    ctx.fillRect(x, y, TILE_W, TILE_H)
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.font = 'bold 28px sans-serif'
+    ctx.fillText(`${index}s`, x + 12, y + 52)
+  }
+  return canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 })
 }
 
 export const handlers = [
@@ -109,7 +189,18 @@ export const handlers = [
     return a ? HttpResponse.json(a) : notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
   }),
   http.get(url('/assets/:id/waveform.json'), () => HttpResponse.json(fixtures.waveform)),
-  http.get(url('/assets/:id/thumbs.json'), () => HttpResponse.json(fixtures.thumbs)),
+  http.get(url('/assets/:id/thumbs.json'), ({ params }) => {
+    const a = assets.get(String(params.id))
+    return a
+      ? HttpResponse.json(thumbsFor(a))
+      : notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+  }),
+  http.get(url('/assets/:id/thumbs/:file'), async ({ params }) => {
+    const blob = await renderAtlas(String(params.id), parseInt(String(params.file), 10) || 0)
+    return blob
+      ? new HttpResponse(blob, { headers: { 'Content-Type': 'image/jpeg' } })
+      : notFound('file_not_found', 'Атлас недоступен')
+  }),
   http.post(url('/assets/import'), async ({ request }) => {
     const body = (await request.json()) as { paths: string[] }
     const res = body.paths.map((p) => importAsset(p.split(/[\\/]/).pop() ?? p, p))
