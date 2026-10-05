@@ -37,6 +37,12 @@ class DataPaths:
     def asset_dir(self, asset_id: str) -> Path:
         return self.assets / asset_id
 
+    def analysis_dir(self, asset_id: str) -> Path:
+        return self.asset_dir(asset_id) / "analysis"
+
+    def stems_dir(self, asset_id: str) -> Path:
+        return self.asset_dir(asset_id) / "stems"
+
     def ensure(self) -> None:
         for p in (self.assets, self.uploads, self.projects, self.gemini_cache, self.logs):
             p.mkdir(parents=True, exist_ok=True)

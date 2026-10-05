@@ -13,10 +13,13 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 from starlette.datastructures import UploadFile
 
+from app.audio import stems as stems_mod
+from app.audio.analysis import stem_urls
 from app.errors import ApiException
 from app.ids import ASSET_ID_RE
+from app.jobs.manager import JobContext, JobManager
 from app.media.pipeline import DERIVED_FILES, MediaService
-from app.models.gen import Asset, ImportRequest, ImportResponse
+from app.models.gen import Asset, ImportRequest, ImportResponse, JobRef
 from app.storage import atomic
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
@@ -144,6 +147,37 @@ async def get_asset(asset_id: str, request: Request) -> Asset:
 
 
 # ---------- файлы ----------
+
+
+# ---------- стемы (Demucs) ----------
+
+
+@router.post("/{asset_id}/stems", response_model=JobRef, response_model_exclude_none=True)
+async def make_stems(asset_id: str, request: Request) -> JobRef:
+    asset = _asset(request, asset_id)
+    stems_mod.require_demucs()
+    if asset.kind == "image" or (asset.kind == "video" and not asset.has_audio):
+        raise ApiException(422, "no_audio", f"В ассете {asset_id} нет звука")
+    ffmpeg = _media(request).tools().ffmpeg
+    paths = _paths(request)
+    jobs: JobManager = request.app.state.jobs
+
+    async def run(ctx: JobContext) -> dict[str, str]:
+        audio = paths.asset_dir(asset_id) / "audio.m4a"
+        src = audio if audio.is_file() else Path(asset.path)
+        await stems_mod.separate(ctx, ffmpeg, src, paths.stems_dir(asset_id))
+        return stem_urls(asset_id)
+
+    job = jobs.submit("stems", run, asset_id=asset_id, resource="cpu", message=stems_mod.device_warning())
+    return JobRef(job_id=job.id)
+
+
+@router.get("/{asset_id}/stems/{name}.wav")
+async def get_stem(asset_id: str, name: str, request: Request) -> FileResponse:
+    _asset(request, asset_id)
+    if name not in stems_mod.STEM_NAMES:
+        raise ApiException(404, "file_not_found", f"Неизвестный стем: {name}")
+    return _file_response(stems_mod.stem_path(_paths(request).stems_dir(asset_id), name), asset_id)
 
 
 @router.get("/{asset_id}/original")
