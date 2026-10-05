@@ -71,6 +71,12 @@ data/presets.json
 - [ ] Событие WS `asset` при каждом новом производном файле.
 - [ ] Тесты: импорт сгенерированного 5-секундного видео (lavfi testsrc + sine), все производные созданы, Range-запрос отдаёт 206.
 
+### 1.x Проекты (CONTRACT §8–9)
+- [ ] `storage/atomic.py`: запись tmp + `os.replace`; `storage/projects_repo.py`.
+- [ ] `GET /projects` (`{id,name,updatedAt}[]`, сортировка по `updatedAt` desc), `POST /projects` (`{name,fps,width,height}` → пустой `Project` с `revision: 0`), `GET /projects/{id}` (404 `project_not_found`).
+- [ ] `PUT /projects/{id}`: тело валидируется по схеме; `revision` в теле ≠ текущему → 409 `revision_conflict` (в `details` — текущий `revision`); иначе `revision+1`, `updatedAt` = сейчас, атомарная запись, предыдущая версия → `data/projects/{id}.history/{revision}.json`, хранить 20 последних.
+- [ ] Тесты: создание → чтение → сохранение (revision растёт) → 409 при устаревшем revision → история обрезается до 20; ответ совпадает по форме с `shared/fixtures/project.json`.
+
 ## Фаза 2 — Анализ музыки
 
 - [ ] `audio/bass.py`: загрузка моно 22050 → Butterworth LP 4-го порядка `sosfiltfilt` на `bassCutoffHz` → `librosa.onset.onset_strength(hop=256)` → `onset_detect(delta = 0.02 + (1 − sensitivity)·0.3, wait = minGap·sr/hop)` → `strength` = значение огибающей, нормализованное по 99-му перцентилю, обрезано до 1. С `useStems` — то же на стеме drums+bass.
@@ -89,6 +95,13 @@ data/presets.json
 - [ ] `video/motion.py`: энергия движения — ffmpeg из прокси в 160×90 gray @ 10 fps → numpy, среднее абсолютной разницы кадров, сглаживание, нормализация → `ClipAnalysis.motion`.
 - [ ] `video/scenes.py`: склейки внутри исходника (`select='gt(scene,0.3)'` или разницей гистограмм) → границы shots (тип плана заполнит Gemini).
 - [ ] `/analysis/clip/{id}` отдаёт то, что есть (motion + scenes) даже без Gemini.
+
+## Фаза 4 — Пресеты эффектов
+
+- [ ] `GET /presets` → `EffectPreset[]` из `data/presets.json` (`{version, presets}`; файла нет → пустой список); `POST /presets` → созданный пресет с `id` (атомарная запись).
+- [ ] Валидация пресета: каждый `effect` существует в `shared/effects.json`, параметры — известные ключи в диапазонах `min..max`, `enum` — из `options`; ошибка → 422 `invalid_preset` с перечнем в `details`.
+- [ ] При старте: `shared/effects.json` и `shared/styles.json` валидируются (уникальные id, дефолты в диапазонах, эффекты стилей существуют в реестре); ошибка — в лог и в `/health` не роняет сервер.
+- [ ] Тесты: CRUD пресетов, отказ на неизвестном эффекте/параметре вне диапазона.
 
 ## Фаза 5 — Интерполяция (RIFE)
 
