@@ -1,7 +1,7 @@
 // Порядок дорожек на экране и их перестановка.
 // project.tracks: порядок отрисовки снизу вверх (tracks[0] — нижний слой, CONTRACT §2).
 // На экране (как в Premiere): сверху визуальные дорожки (video/fx) — верхний слой первым, ниже аудио по порядку.
-import type { Project, Track } from '@/shared/types.gen'
+import type { EditOp, Project, Track } from '@/shared/types.gen'
 
 export type TrackGroup = 'visual' | 'audio'
 
@@ -42,6 +42,22 @@ export function moveTrackInDisplay(
   const next = p.tracks.map((t) => (trackGroup(t) === group ? arrayOrder[k++]! : t))
   p.tracks.splice(0, p.tracks.length, ...next)
   return true
+}
+
+/**
+ * Op `moveTrack` для перестановки дорожки на позицию `toDisplayIndex` экранного порядка
+ * (в пределах своей группы). null — порядок не меняется.
+ */
+export function planTrackMove(
+  p: Pick<Project, 'tracks'>,
+  trackId: string,
+  toDisplayIndex: number,
+): Extract<EditOp, { op: 'moveTrack' }> | null {
+  const copy = { tracks: [...p.tracks] }
+  if (!moveTrackInDisplay(copy, trackId, toDisplayIndex)) return null
+  // перестановка внутри группы — перенос одной дорожки, остальные сохраняют порядок,
+  // поэтому её итоговый индекс и есть `index` op moveTrack (CONTRACT §6)
+  return { op: 'moveTrack', trackId, index: copy.tracks.findIndex((t) => t.id === trackId) }
 }
 
 /** Индекс в project.tracks для новой дорожки: визуальная — поверх всех визуальных, аудио — в конец. */

@@ -74,6 +74,75 @@ describe('applyOps', () => {
     expectReject(p, [{ op: 'removeTrack', trackId: 'trk_nope' }], 'track_not_found')
   })
 
+  it('updateTrack: patches name/flags/volume; validates values', () => {
+    const p = sampleProject()
+    const res = run(p, [
+      { op: 'updateTrack', trackId: 'trk_v1', patch: { name: 'Main', muted: true, hidden: true } },
+      { op: 'updateTrack', trackId: 'trk_a1', patch: { volume: 1.5, locked: true } },
+    ])
+    expect(findTrack(res.project, 'trk_v1')).toMatchObject({
+      name: 'Main',
+      muted: true,
+      hidden: true,
+      locked: false,
+    })
+    expect(findTrack(res.project, 'trk_a1')).toMatchObject({ volume: 1.5, locked: true })
+    // items не затронуты
+    expect(findTrack(res.project, 'trk_v1')!.items).toHaveLength(2)
+    expectReject(p, [{ op: 'updateTrack', trackId: 'trk_nope', patch: { muted: true } }], 'track_not_found')
+    expectReject(p, [{ op: 'updateTrack', trackId: 'trk_v1', patch: { name: '  ' } }], 'bad_value')
+    expectReject(p, [{ op: 'updateTrack', trackId: 'trk_a1', patch: { volume: 3 } }], 'bad_value')
+    expectReject(p, [{ op: 'updateTrack', trackId: 'trk_v1', patch: { volume: 1 } }], 'bad_value')
+  })
+
+  it('updateTrack: tmp_ id of a track created earlier in the same list', () => {
+    const p = sampleProject()
+    const res = run(p, [
+      {
+        op: 'addTrack',
+        track: {
+          id: 'tmp_a',
+          kind: 'audio',
+          name: 'A2',
+          muted: false,
+          locked: false,
+          hidden: false,
+          volume: 1,
+        },
+      },
+      { op: 'updateTrack', trackId: 'tmp_a', patch: { muted: true } },
+    ])
+    expect(findTrack(res.project, res.idMap['tmp_a']!)!.muted).toBe(true)
+  })
+
+  it('moveTrack: index is the final position in project.tracks; clamps past the end', () => {
+    const p = sampleProject() // [v1, v2, fx, a1]
+    const ids = (q: Project) => q.tracks.map((t) => t.id)
+    expect(ids(run(p, [{ op: 'moveTrack', trackId: 'trk_v1', index: 2 }]).project)).toEqual([
+      'trk_v2',
+      'trk_fx',
+      'trk_v1',
+      'trk_a1',
+    ])
+    expect(ids(run(p, [{ op: 'moveTrack', trackId: 'trk_a1', index: 0 }]).project)).toEqual([
+      'trk_a1',
+      'trk_v1',
+      'trk_v2',
+      'trk_fx',
+    ])
+    expect(ids(run(p, [{ op: 'moveTrack', trackId: 'trk_v1', index: 99 }]).project)).toEqual([
+      'trk_v2',
+      'trk_fx',
+      'trk_a1',
+      'trk_v1',
+    ])
+    // на месте — без изменений
+    expect(ids(run(p, [{ op: 'moveTrack', trackId: 'trk_fx', index: 2 }]).project)).toEqual(ids(p))
+    expectReject(p, [{ op: 'moveTrack', trackId: 'trk_nope', index: 0 }], 'track_not_found')
+    expectReject(p, [{ op: 'moveTrack', trackId: 'trk_v1', index: -1 }], 'bad_value')
+    expectReject(p, [{ op: 'moveTrack', trackId: 'trk_v1', index: 1.5 }], 'bad_value')
+  })
+
   it('addClip: copies asset metadata from the library into project.assets', () => {
     const p = sampleProject()
     p.assets = []

@@ -11,8 +11,10 @@ interface UiState {
   /** Выделенные элементы дорожек (клипы и эффекты fx-дорожек). */
   selection: string[]
   playhead: number
-  /** Идёт воспроизведение (фаза 1b) — таймлайн автоскроллит за плейхедом. */
+  /** Идёт воспроизведение — таймлайн автоскроллит за плейхедом. Управляется playback/player.ts. */
   playing: boolean
+  /** Скорость транспорта: 1 — обычная, ±2/4/8 — шаттл J/L, отрицательная — назад. */
+  playRate: number
   pxPerSec: number
   /** Время у левого края таймлайна, сек. */
   scrollX: number
@@ -49,6 +51,7 @@ export const useUi = create<UiState>()((set, get) => ({
   selection: [],
   playhead: 0,
   playing: false,
+  playRate: 1,
   pxPerSec: 40,
   scrollX: 0,
   scrollY: 0,

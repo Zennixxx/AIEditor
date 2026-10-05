@@ -59,9 +59,20 @@ export function getImage(url: string): HTMLImageElement | null {
   })
 }
 
-/** Плитки на одном JPG-атласе. CONTRACT §3 не задаёт число строк; бэк делает атласы 10×10 (docs/BACKEND.md). */
+/** Строк плиток в атласе (CONTRACT §3: `rows`, по умолчанию = `columns`). */
+export function atlasRows(t: Thumbs): number {
+  return t.rows ?? t.columns
+}
+
+/** Плитки на одном JPG-атласе: columns × rows. */
 export function tilesPerSprite(t: Thumbs): number {
-  return t.columns * t.columns
+  return t.columns * atlasRows(t)
+}
+
+/** Индекс кадра атласа для source time `src` (`null`, если кадров нет). */
+export function thumbIndex(t: Thumbs, src: number): number | null {
+  if (t.count <= 0) return null
+  return Math.min(t.count - 1, Math.max(0, Math.floor(src / t.interval)))
 }
 
 export interface TileRef {
@@ -74,8 +85,8 @@ export interface TileRef {
 
 /** Плитка атласа для source time `src`. */
 export function thumbTile(t: Thumbs, src: number): TileRef | null {
-  if (t.count <= 0) return null
-  const index = Math.min(t.count - 1, Math.max(0, Math.floor(src / t.interval)))
+  const index = thumbIndex(t, src)
+  if (index === null) return null
   const per = tilesPerSprite(t)
   const sprite = t.sprites[Math.floor(index / per)]
   if (!sprite) return null
@@ -87,6 +98,12 @@ export function thumbTile(t: Thumbs, src: number): TileRef | null {
     sw: t.tileWidth,
     sh: t.tileHeight,
   }
+}
+
+/** Пик waveform (пара min/max), покрывающий source time `src`: индекс = src · sampleRate / samplesPerPeak. */
+export function peakIndex(w: Waveform, src: number): number {
+  const count = Math.floor(w.peaks.length / 2)
+  return Math.min(count - 1, Math.max(0, Math.floor((src * w.sampleRate) / w.samplesPerPeak)))
 }
 
 /** React-хук: перерисовать компонент, когда что-то догрузилось. */

@@ -1,34 +1,30 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { removeTrack } from '@/app/actions'
-import { moveTrackInDisplay, trackGroup } from '@/model/tracks'
-import type { Track } from '@/shared/types.gen'
+import { planTrackMove, trackGroup } from '@/model/tracks'
+import type { EditOp, Track } from '@/shared/types.gen'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { RULER_H, type TrackRow } from './geometry'
 import styles from './Timeline.module.css'
 
 type Flag = 'muted' | 'locked' | 'hidden'
+type TrackPatch = Extract<EditOp, { op: 'updateTrack' }>['patch']
+
+function updateTrack(track: Track, patch: TrackPatch, label: string, mergeKey?: string): void {
+  useProject
+    .getState()
+    .dispatch([{ op: 'updateTrack', trackId: track.id, patch }], { label, ...(mergeKey ? { mergeKey } : {}) })
+}
 
 function setFlag(track: Track, flag: Flag): void {
   const labels: Record<Flag, string> = { muted: 'Mute', locked: 'Блокировка', hidden: 'Скрыть' }
-  useProject.getState().transact(
-    (d) => {
-      const t = d.tracks.find((x) => x.id === track.id)
-      if (t) t[flag] = !t[flag]
-    },
-    { label: `${labels[flag]} ${track.name}` },
-  )
+  updateTrack(track, { [flag]: !track[flag] }, `${labels[flag]} ${track.name}`)
 }
 
 function rename(track: Track, name: string): void {
-  if (!name.trim() || name === track.name) return
-  useProject.getState().transact(
-    (d) => {
-      const t = d.tracks.find((x) => x.id === track.id)
-      if (t) t.name = name.trim()
-    },
-    { label: 'Переименовать дорожку' },
-  )
+  const next = name.trim()
+  if (!next || next === track.name) return
+  updateTrack(track, { name: next }, 'Переименовать дорожку')
 }
 
 /** Заголовки дорожек (DOM-колонка слева от canvas): имя, M/L/H/S, удаление, перестановка drag-ом. */
@@ -71,11 +67,9 @@ export function TrackHeaders({ rows, scrollY }: { rows: readonly TrackRow[]; scr
       handle.removeEventListener('pointerup', onUp)
       handle.removeEventListener('pointercancel', onUp)
       setDrag(null)
-      if (latest !== row.index) {
-        useProject.getState().transact((d) => void moveTrackInDisplay(d, row.track.id, latest), {
-          label: 'Переставить дорожку',
-        })
-      }
+      const op =
+        latest !== row.index ? planTrackMove(useProject.getState().project, row.track.id, latest) : null
+      if (op) useProject.getState().dispatch([op], { label: 'Переставить дорожку' })
     }
     handle.addEventListener('pointermove', onMove)
     handle.addEventListener('pointerup', onUp)
@@ -164,6 +158,7 @@ export function TrackHeaders({ rows, scrollY }: { rows: readonly TrackRow[]; scr
                     ×
                   </button>
                 </div>
+                {t.kind === 'audio' && <VolumeSlider track={t} />}
               </div>
             )
           })}
@@ -199,5 +194,34 @@ function ToggleButton({
     <button className={styles.toggle} data-on={on} aria-pressed={on} title={title} onClick={onClick}>
       {label}
     </button>
+  )
+}
+
+let volumeSeq = 0
+
+/** Громкость аудиодорожки 0..2 (op updateTrack); непрерывное перетаскивание — одна запись истории. */
+function VolumeSlider({ track }: { track: Track }) {
+  const [key, setKey] = useState<string | null>(null)
+  const volume = track.volume ?? 1
+  return (
+    <input
+      type="range"
+      className={styles.volume}
+      min={0}
+      max={2}
+      step={0.01}
+      value={volume}
+      aria-label={`Громкость ${track.name}`}
+      title={`Громкость ${Math.round(volume * 100)}% (двойной клик — 100%)`}
+      onPointerDown={() => setKey(`volume:${track.id}:${++volumeSeq}`)}
+      onPointerUp={() => {
+        setKey(null)
+        useProject.getState().sealHistory()
+      }}
+      onDoubleClick={() => updateTrack(track, { volume: 1 }, 'Громкость дорожки')}
+      onChange={(e) =>
+        updateTrack(track, { volume: Number(e.currentTarget.value) }, 'Громкость дорожки', key ?? undefined)
+      }
+    />
   )
 }

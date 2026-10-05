@@ -5,24 +5,67 @@
 }
 
 .viewport {
+  position: relative;
   flex: 1;
   min-height: 0;
   margin: 8px;
   background: #000;
   border-radius: 4px;
+  overflow: hidden;
+}
+
+.canvas {
+  position: absolute;
+  display: block;
 }
 
 .transport {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
+  gap: 4px;
+  height: 36px;
   border-top: 1px solid var(--border);
   flex: none;
 }
 
+.transport button {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.transport button:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.transport .play {
+  min-width: 40px;
+  color: var(--text);
+}
+
+.transport .play[aria-pressed='true'] {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
 .timecode {
+  margin-left: 10px;
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--text);
+}
+
+.rate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--snap);
 }

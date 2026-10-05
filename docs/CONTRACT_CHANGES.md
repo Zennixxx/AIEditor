@@ -16,7 +16,15 @@
 
 ## Proposed
 
-_пусто_
+### Семантика `updateTrack` / `moveTrack` (уточнение CONTRACT §6.1)
+- Автор: frontend
+- Фаза: 1b
+- Что: дописать в §6.1 (фронт так уже делает в `applyOps`):
+  - `moveTrack.index` — итоговая позиция дорожки в `project.tracks` после переноса; индекс за концом → в конец (как `addTrack.index`); нецелый или < 0 → ошибка `bad_value`;
+  - `updateTrack.patch.volume` допустим только у `audio`-дорожки, 0..2; пустое имя → `bad_value`.
+- Зачем: бэк в `validate_ops` (сухой прогон) должен давать тот же результат, что `applyOps`.
+- Пример JSON: `{ "op": "moveTrack", "trackId": "trk_v1", "index": 99 }` при 4 дорожках ≡ `index: 3`.
+- Совместимость: да.
 
 ## Applied
 

@@ -61,6 +61,46 @@ describe('hotkeys', () => {
     expect(useUi.getState().pxPerSec).toBeCloseTo(z)
   })
 
+  it('Space toggles playback, Home/End jump, arrows step one frame', () => {
+    press('Space', ' ')
+    expect(useUi.getState().playing).toBe(true)
+    press('Space', ' ')
+    expect(useUi.getState().playing).toBe(false)
+    press('End', 'End')
+    expect(useUi.getState().playhead).toBe(4) // длительность sampleProject
+    press('Home', 'Home')
+    expect(useUi.getState().playhead).toBe(0)
+    press('ArrowRight', 'ArrowRight')
+    press('ArrowRight', 'ArrowRight')
+    expect(useUi.getState().playhead).toBeCloseTo(2 / 30)
+    press('ArrowLeft', 'ArrowLeft')
+    expect(useUi.getState().playhead).toBeCloseTo(1 / 30)
+    press('ArrowLeft', 'ArrowLeft')
+    press('ArrowLeft', 'ArrowLeft')
+    expect(useUi.getState().playhead).toBe(0) // не уходит в минус
+  })
+
+  it('J/K/L shuttle: repeated L doubles the rate, J plays backwards, K stops', () => {
+    useUi.setState({ playhead: 2 })
+    press('KeyL', 'l')
+    expect(useUi.getState()).toMatchObject({ playing: true, playRate: 1 })
+    press('KeyL', 'д') // русская раскладка — по физической клавише
+    expect(useUi.getState().playRate).toBe(2)
+    press('KeyJ', 'j')
+    expect(useUi.getState()).toMatchObject({ playing: true, playRate: -1 })
+    press('KeyK', 'k')
+    expect(useUi.getState().playing).toBe(false)
+    // K без Ctrl не режет клипы
+    expect(clipCount()).toBe(2)
+  })
+
+  it('Space at the end restarts from the beginning', () => {
+    useUi.setState({ playhead: 4 })
+    press('Space', ' ')
+    expect(useUi.getState().playhead).toBe(0)
+    press('Space', ' ')
+  })
+
   it('ignores keys typed into inputs', () => {
     const input = document.createElement('input')
     document.body.appendChild(input)

@@ -9,8 +9,8 @@ import styles from './MediaBin.module.css'
 import { EmptyState, Panel } from './Panel'
 
 const JOB_LABELS: Partial<Record<JobKind, string>> = {
-  import: 'Анализ файла',
   proxy: 'Прокси',
+  audio: 'Аудио',
   thumbs: 'Превью-кадры',
   waveform: 'Waveform',
   mezzanine: 'Mezzanine',

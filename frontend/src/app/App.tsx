@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Inspector } from '@/panels/Inspector'
 import { MediaBin } from '@/panels/MediaBin'
 import { Preview } from '@/panels/Preview'
+import { player } from '@/playback/player'
 import { startBackendMonitor } from '@/store/backend'
 import { startDataSync } from '@/store/sync'
 import { TimelinePanel } from '@/timeline/TimelinePanel'
@@ -14,6 +15,7 @@ export function App() {
   useEffect(() => startBackendMonitor(), [])
   useEffect(() => startDataSync(), [])
   useEffect(() => installHotkeys(), [])
+  useEffect(() => player.start(), [])
 
   return (
     <div className={styles.app}>
