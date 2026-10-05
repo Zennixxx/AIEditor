@@ -308,6 +308,8 @@ interface OpsResult { ops: EditOp[]; explanation: string; warnings?: string[] }
 4. `project.duration` пересчитывается после каждой транзакции как максимум `start + duration` по всем элементам дорожек.
 5. `addClip` с `assetId`, которого нет в `project.assets`, копирует метаданные ассета из библиотеки (`GET /assets`), иначе ошибка `asset_not_found`.
 6. Инвариант 3 для `image`: верхняя граница `asset.duration` (= 0) не проверяется; `sourceIn/sourceOut` — условные (`0 … duration·speed`).
+7. `moveTrack.index` — итоговая позиция дорожки в `project.tracks` после переноса; индекс за концом → в конец (как `addTrack.index`); нецелый или < 0 → ошибка `bad_value`.
+8. `updateTrack.patch.volume` допустим только у `audio`-дорожки, 0..2; пустое имя → `bad_value`.
 
 ## 7. Реестр эффектов (`shared/effects.json`)
 
