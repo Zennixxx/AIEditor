@@ -20,6 +20,12 @@ _пусто_
 
 ## Applied
 
+### v1.4.2 — фаза 2 бэка (только документация)
+- Дата: 2026-10-05
+- Автор: backend, утвердил оркестратор
+- Что: CONTRACT §8.2 — 422 `no_audio` у `POST /analysis/…/{id}` и `/assets/{id}/stems` для ассета без звука; 501 `demucs_not_installed` также у `POST /analysis/music/{id}` с `useStems: true`. Бэк дополнительно отдаёт стемы по `GET /assets/{id}/stems/{drums|bass|other|vocals}.wav` (URL из результата задачи `stems`).
+- Совместимость: да.
+
 ### v1.4.1 — коды ошибок анализа (только документация)
 - Дата: 2026-10-05
 - Автор: frontend, утвердил оркестратор

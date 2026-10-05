@@ -362,6 +362,7 @@ interface EffectDef {
 | GET | `/assets/{id}/thumbs.json`, `/thumbs/{n}.jpg`, `/waveform.json` | — | файл |
 | POST | `/assets/{id}/interpolate` | `{sourceIn, sourceOut, factor}` | `JobRef` → результат `Asset` |
 | POST | `/assets/{id}/stems` | — | `JobRef` → результат `{drums, bass, other, vocals}` URL |
+| GET | `/assets/{id}/stems/{name}.wav` | — | WAV стема (`name`: drums, bass, other, vocals), Range |
 | POST | `/analysis/music/{id}` | `MusicAnalysisParams` (частично) | `JobRef` → результат `MusicAnalysis` |
 | GET | `/analysis/music/{id}` | — | `MusicAnalysis` или 404 |
 | GET | `/analysis/clip/{id}` | — | `ClipAnalysis` или 404 |
@@ -458,7 +459,8 @@ interface EffectPreset {      // пользовательский пресет-�
 | `/jobs/{id}` | 404 | `job_not_found` | — |
 | `GET /analysis/music/{id}`, `GET /analysis/clip/{id}` | 404 | `analysis_not_found` | анализ ещё не выполнен |
 | `POST /analysis/…/{id}`, `/assets/{id}/stems` | 404 | `asset_not_found` | — |
-| `POST /assets/{id}/stems` | 501 | `demucs_not_installed` | — |
+| | 422 | `no_audio` | у ассета нет звука (изображение, видео без аудио) |
+| `POST /assets/{id}/stems`, `POST /analysis/music/{id}` с `useStems: true` | 501 | `demucs_not_installed` | — |
 | любой | 422 | `validation_error` | ошибки валидации |
 
 Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`.
