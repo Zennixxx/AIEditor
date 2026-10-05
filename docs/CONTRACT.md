@@ -36,7 +36,7 @@ interface Project {
   assets: Asset[];            // копия метаданных используемых ассетов
   tracks: Track[];            // порядок = порядок отрисовки снизу вверх (tracks[0] — самый нижний)
   markers: Marker[];          // маркеры композиции (timeline time)
-  sections: Section[];        // секции музыки, перенесённые на таймлайн (timeline time)
+  sections: Section[];        // секции композиции (timeline time): ручные / от ИИ. Секции из анализа музыки — в clip.sections
   createdAt: string;          // ISO 8601
   updatedAt: string;
   revision: number;           // +1 при каждом сохранении, для оптимистичной блокировки
@@ -72,6 +72,7 @@ interface Clip {
   volume?: Animatable;        // audio-часть клипа (и у видео, если есть звук), 0..2
   effects: EffectItem[];      // эффекты, применённые к клипу; start — относительно начала клипа
   markers: Marker[];          // маркеры слоя в SOURCE time (двигаются вместе с клипом, как layer markers в AE)
+  sections?: Section[];       // секции музыки из анализа, SOURCE time (двигаются вместе с клипом); только audio / видео со звуком
   interpolatedAssetId?: string; // производный ассет RIFE, см. §5.3
   label?: string;
   color?: string;
@@ -144,6 +145,7 @@ interface Envelope {          // огибающая интенсивности 0
 5. `assetId` ссылается на ассет из `project.assets`.
 6. `anchor.markerId` ссылается на существующий маркер; если маркер удалён — `anchor` снимается, эффект остаётся на месте.
 7. Порядок рендера: дорожки снизу вверх; эффект fx-дорожки применяется к композиту всех дорожек **ниже** неё (как adjustment layer).
+8. Секции одного списка (`project.sections` или `clip.sections`) отсортированы по `start`, не перекрываются, `start < end`; ID секций и маркеров уникальны во всём проекте. Секции клипа могут выходить за `[sourceIn, sourceOut]` — UI и макро-ops обрезают их по видимому диапазону.
 
 ## 3. Ассеты
 
@@ -212,7 +214,13 @@ interface ClipAnalysis {
 }
 ```
 
-Перенос маркеров из анализа в проект: при добавлении аудиоклипа фронт копирует `bass`/`beats`/`downbeats` в `clip.markers` (kind соответствующий), секции — в `project.sections` с пересчётом в timeline time.
+Перенос анализа в проект (одной транзакцией ops: `removeMarkers` старых автоматических + `addMarkers` + `setSections`):
+
+- маркеры → `clip.markers` в source time (без пересчёта): `bass` → kind `bass` (strength из анализа); `downbeats` → `downbeat` (strength 1); `beats`, не совпадающие с даунбитом (±1 мс), → `beat` (strength 1); `onsets` → `onset` (strength из анализа);
+- маркеры `onset` по умолчанию скрыты фильтром видимости UI (чекбокс вида выключен); `MarkerFilter.kinds` по умолчанию `["bass"]`, так что в макро-ops они не попадают, пока их не запросят явно;
+- секции → `clip.sections` в source time (`setSections` с `target: {clipId}`), а не в `project.sections`: так они едут вместе с клипом при `moveClip`/триме, как маркеры (DECISIONS #8);
+- «Переанализировать» заменяет маркеры видов `bass`/`beat`/`downbeat`/`onset` и `clip.sections`; маркеры `manual` и `ai` сохраняются;
+- для видеоклипа со звуком — то же самое, анализ берётся по его ассету.
 
 ## 5. Speed ramp (TimeRemap)
 
@@ -273,6 +281,7 @@ type EditOp =
   | { op: "addMarkers"; target: { clipId: string } | "project"; markers: (Omit<Marker, "id"> & { id?: string })[] }
   | { op: "updateMarker"; markerId: string; patch: Partial<Omit<Marker, "id">> }
   | { op: "removeMarkers"; markerIds: string[] }
+  | { op: "setSections"; target: { clipId: string } | "project"; sections: (Omit<Section, "id"> & { id?: string })[] }
   | { op: "addEffect"; target: { trackId: string } | { clipId: string }; effect: Omit<EffectItem, "id" | "type"> & { id?: string } }
   | { op: "updateEffect"; effectId: string; patch: Partial<Omit<EffectItem, "id" | "type">> }
   | { op: "removeEffect"; effectId: string }
@@ -289,7 +298,7 @@ interface MarkerFilter {
   minStrength?: number;       // 0..1
   every?: number;             // каждый N-й (1 = все)
   offset?: number;            // сдвиг для every (0 = начиная с первого)
-  sectionLabels?: Section["label"][];
+  sectionLabels?: Section["label"][]; // секции музыкального клипа (пересчитанные в timeline time) + project.sections
   range?: { start: number; end: number }; // timeline time
 }
 
@@ -310,6 +319,9 @@ interface OpsResult { ops: EditOp[]; explanation: string; warnings?: string[] }
 6. Инвариант 3 для `image`: верхняя граница `asset.duration` (= 0) не проверяется; `sourceIn/sourceOut` — условные (`0 … duration·speed`).
 7. `moveTrack.index` — итоговая позиция дорожки в `project.tracks` после переноса; индекс за концом → в конец (как `addTrack.index`); нецелый или < 0 → ошибка `bad_value`.
 8. `updateTrack.patch.volume` допустим только у `audio`-дорожки, 0..2; пустое имя → `bad_value`.
+9. `setSections` заменяет весь список секций цели (пустой массив — очистить). Время — source time для `{clipId}`, timeline time для `"project"`. Вход сортируется по `start`; перекрытие или `start ≥ end` → `bad_value`. Переданный `id` сохраняется (`tmp_` заменяется), без `id` — новый `sec_`. Цель `{clipId}` допустима только для клипа audio-дорожки или видеоклипа с `hasAudio`, иначе `bad_value`. `updateClip.patch` не содержит `markers`/`sections` — для них только marker-ops и `setSections`.
+10. `splitClip` и `clip.sections`: каждая половина получает секции, пересекающиеся с её source-диапазоном, без обрезки границ; секция, попавшая в обе половины, остаётся с исходным ID в левой половине, в правой получает новый `sec_`. `moveClip` и трим секции клипа не меняют (они в source time).
+11. Привязка (snapping) и `MarkerFilter.sectionLabels` используют и `project.sections`, и секции клипов (пересчитанные в timeline time через `start`, `sourceIn`, скорость/`timeRemap` клипа).
 
 ## 7. Реестр эффектов (`shared/effects.json`)
 

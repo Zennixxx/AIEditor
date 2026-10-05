@@ -200,6 +200,10 @@ class Clip(BaseModel):
     volume: Animatable | None = None
     effects: list[EffectItem]
     markers: list[Marker]
+    sections: list[Section] | None = Field(
+        None,
+        description="Секции музыки в SOURCE time (из анализа), двигаются вместе с клипом. Только у audio-клипов и видеоклипов со звуком.",
+    )
     interpolated_asset_id: str | None = Field(None)
     label: str | None = None
     color: str | None = None
@@ -298,7 +302,10 @@ class Project(BaseModel):
     assets: list[Asset]
     tracks: list[Track]
     markers: list[Marker]
-    sections: list[Section]
+    sections: list[Section] = Field(
+        ...,
+        description="Секции композиции в timeline time (ручные / ИИ). Секции из анализа музыки живут в clip.sections.",
+    )
     created_at: AwareDatetime = Field(...)
     updated_at: AwareDatetime = Field(...)
     revision: int = Field(..., ge=0)
@@ -685,7 +692,10 @@ class MarkerFilter(BaseModel):
     min_strength: float | None = Field(None, ge=0.0, le=1.0)
     every: int | None = Field(None, ge=1)
     offset: int | None = Field(None, ge=0)
-    section_labels: list[SectionLabel] | None = Field(None)
+    section_labels: list[SectionLabel] | None = Field(
+        None,
+        description="Секции музыкального клипа (в timeline time) + project.sections.",
+    )
     range: TimeRange | None = None
 
 
@@ -744,6 +754,7 @@ class ClipInput(BaseModel):
     volume: Animatable | None = None
     effects: list[EffectItem]
     markers: list[Marker]
+    sections: list[Section] | None = None
     interpolated_asset_id: str | None = Field(None)
     label: str | None = None
     color: str | None = None
@@ -783,6 +794,20 @@ class MarkerInput(BaseModel):
     strength: float = Field(..., ge=0.0, le=1.0)
     label: str | None = None
     color: str | None = None
+
+
+class SectionInput(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    id: str | None = None
+    start: float
+    end: float
+    label: SectionLabel
+    energy: float = Field(..., ge=0.0, le=1.0)
+    description: str | None = None
 
 
 class MarkerPatch(BaseModel):
@@ -996,6 +1021,21 @@ class OpRemoveMarkers(BaseModel):
     marker_ids: list[str] = Field(..., min_length=1)
 
 
+class OpSetSections(BaseModel):
+    """
+    Заменяет весь список секций цели: clip.sections (source time) или project.sections (timeline time).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    op: Literal["setSections"] = "setSections"
+    target: ClipRef | Literal["project"]
+    sections: list[SectionInput]
+
+
 class OpAddEffect(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1095,6 +1135,7 @@ type EditOp = (
     | OpAddMarkers
     | OpUpdateMarker
     | OpRemoveMarkers
+    | OpSetSections
     | OpAddEffect
     | OpUpdateEffect
     | OpRemoveEffect

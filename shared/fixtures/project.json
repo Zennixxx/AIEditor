@@ -1438,7 +1438,51 @@
               "strength": 0.275
             }
           ],
-          "volume": 1
+          "volume": 1,
+          "sections": [
+            {
+              "id": "sec_0000000000",
+              "start": 0.0,
+              "end": 15.0,
+              "label": "intro",
+              "energy": 0.35
+            },
+            {
+              "id": "sec_0000000001",
+              "start": 15.0,
+              "end": 30.0,
+              "label": "build",
+              "energy": 0.6
+            },
+            {
+              "id": "sec_0000000002",
+              "start": 30.0,
+              "end": 60.0,
+              "label": "drop",
+              "energy": 0.95
+            },
+            {
+              "id": "sec_0000000003",
+              "start": 60.0,
+              "end": 75.0,
+              "label": "break",
+              "energy": 0.3
+            },
+            {
+              "id": "sec_0000000004",
+              "start": 75.0,
+              "end": 90.0,
+              "label": "drop",
+              "energy": 1.0
+            },
+            {
+              "id": "sec_0000000005",
+              "start": 90.0,
+              "end": 96.0,
+              "label": "outro",
+              "energy": 0.25
+            }
+          ]
         }
       ]
     }
@@ -1453,50 +1497,7 @@
       "color": "#ffcc00"
     }
   ],
-  "sections": [
-    {
-      "id": "sec_0000000000",
-      "start": 0.0,
-      "end": 15.0,
-      "label": "intro",
-      "energy": 0.35
-    },
-    {
-      "id": "sec_0000000001",
-      "start": 15.0,
-      "end": 30.0,
-      "label": "build",
-      "energy": 0.6
-    },
-    {
-      "id": "sec_0000000002",
-      "start": 30.0,
-      "end": 60.0,
-      "label": "drop",
-      "energy": 0.95
-    },
-    {
-      "id": "sec_0000000003",
-      "start": 60.0,
-      "end": 75.0,
-      "label": "break",
-      "energy": 0.3
-    },
-    {
-      "id": "sec_0000000004",
-      "start": 75.0,
-      "end": 90.0,
-      "label": "drop",
-      "energy": 1.0
-    },
-    {
-      "id": "sec_0000000005",
-      "start": 90.0,
-      "end": 96.0,
-      "label": "outro",
-      "energy": 0.25
-    }
-  ],
+  "sections": [],
   "createdAt": "2026-10-05T12:00:00Z",
   "updatedAt": "2026-10-05T12:00:00Z",
   "revision": 3

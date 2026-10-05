@@ -51,6 +51,7 @@ export type EditOp =
   | OpAddMarkers
   | OpUpdateMarker
   | OpRemoveMarkers
+  | OpSetSections
   | OpAddEffect
   | OpUpdateEffect
   | OpRemoveEffect
@@ -165,6 +166,10 @@ export interface Clip {
   volume?: Animatable
   effects: EffectItem[]
   markers: Marker[]
+  /**
+   * Секции музыки в SOURCE time (из анализа), двигаются вместе с клипом. Только у audio-клипов и видеоклипов со звуком.
+   */
+  sections?: Section[]
   interpolatedAssetId?: string
   label?: string
   color?: string
@@ -221,6 +226,9 @@ export interface Project {
   assets: Asset[]
   tracks: Track[]
   markers: Marker[]
+  /**
+   * Секции композиции в timeline time (ручные / ИИ). Секции из анализа музыки живут в clip.sections.
+   */
   sections: Section[]
   createdAt: string
   updatedAt: string
@@ -430,6 +438,9 @@ export interface MarkerFilter {
   minStrength?: number
   every?: number
   offset?: number
+  /**
+   * Секции музыкального клипа (в timeline time) + project.sections.
+   */
   sectionLabels?: SectionLabel[]
   range?: TimeRange
 }
@@ -465,6 +476,7 @@ export interface ClipInput {
   volume?: Animatable
   effects: EffectItem[]
   markers: Marker[]
+  sections?: Section[]
   interpolatedAssetId?: string
   label?: string
   color?: string
@@ -492,6 +504,14 @@ export interface MarkerInput {
   strength: number
   label?: string
   color?: string
+}
+export interface SectionInput {
+  id?: string
+  start: number
+  end: number
+  label: SectionLabel
+  energy: number
+  description?: string
 }
 export interface MarkerPatch {
   t?: number
@@ -603,6 +623,14 @@ export interface OpRemoveMarkers {
    * @minItems 1
    */
   markerIds: string[]
+}
+/**
+ * Заменяет весь список секций цели: clip.sections (source time) или project.sections (timeline time).
+ */
+export interface OpSetSections {
+  op: 'setSections'
+  target: ClipRef | 'project'
+  sections: SectionInput[]
 }
 export interface OpAddEffect {
   op: 'addEffect'

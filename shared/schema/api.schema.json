@@ -349,7 +349,11 @@
         "minStrength": { "type": "number", "minimum": 0, "maximum": 1 },
         "every": { "type": "integer", "minimum": 1 },
         "offset": { "type": "integer", "minimum": 0 },
-        "sectionLabels": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/SectionLabel" } },
+        "sectionLabels": {
+          "type": "array",
+          "items": { "$ref": "project.schema.json#/definitions/SectionLabel" },
+          "description": "Секции музыкального клипа (в timeline time) + project.sections."
+        },
         "range": { "$ref": "#/definitions/TimeRange" }
       }
     },
@@ -404,6 +408,7 @@
         "volume": { "$ref": "project.schema.json#/definitions/Animatable" },
         "effects": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/EffectItem" } },
         "markers": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/Marker" } },
+        "sections": { "type": "array", "items": { "$ref": "project.schema.json#/definitions/Section" } },
         "interpolatedAssetId": { "type": "string" },
         "label": { "type": "string" },
         "color": { "type": "string" }
@@ -440,6 +445,19 @@
         "strength": { "type": "number", "minimum": 0, "maximum": 1 },
         "label": { "type": "string" },
         "color": { "type": "string" }
+      }
+    },
+    "SectionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "label", "energy"],
+      "properties": {
+        "id": { "type": "string" },
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "label": { "$ref": "project.schema.json#/definitions/SectionLabel" },
+        "energy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "description": { "type": "string" }
       }
     },
     "MarkerPatch": {
@@ -633,6 +651,17 @@
         "markerIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
       }
     },
+    "OpSetSections": {
+      "description": "Заменяет весь список секций цели: clip.sections (source time) или project.sections (timeline time).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "sections"],
+      "properties": {
+        "op": { "const": "setSections" },
+        "target": { "oneOf": [{ "$ref": "#/definitions/ClipRef" }, { "const": "project" }] },
+        "sections": { "type": "array", "items": { "$ref": "#/definitions/SectionInput" } }
+      }
+    },
     "OpAddEffect": {
       "type": "object",
       "additionalProperties": false,
@@ -727,6 +756,7 @@
         { "$ref": "#/definitions/OpAddMarkers" },
         { "$ref": "#/definitions/OpUpdateMarker" },
         { "$ref": "#/definitions/OpRemoveMarkers" },
+        { "$ref": "#/definitions/OpSetSections" },
         { "$ref": "#/definitions/OpAddEffect" },
         { "$ref": "#/definitions/OpUpdateEffect" },
         { "$ref": "#/definitions/OpRemoveEffect" },

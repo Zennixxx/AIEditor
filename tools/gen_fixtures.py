@@ -234,7 +234,9 @@ def project(ma: dict[str, Any], asset_list: list[dict[str, Any]]) -> dict[str, A
         "envelope": {"attack": 0, "hold": MUSIC_DURATION, "decay": 0, "curve": "linear"}, "enabled": True,
     }
     music_clip = clip("clp_music00001", MUSIC, 0.0, MUSIC_DURATION, 0.0, MUSIC_DURATION,
-                      markers=music_markers, volume=1)
+                      markers=music_markers, volume=1,
+                      sections=[{"id": f"sec_{i:010d}", "start": s, "end": e, "label": lbl, "energy": en}
+                                for i, (s, e, lbl, en) in enumerate(SECTIONS)])
 
     return {
         "schemaVersion": 1,
@@ -255,10 +257,7 @@ def project(ma: dict[str, Any], asset_list: list[dict[str, Any]]) -> dict[str, A
              "hidden": False, "volume": 1, "items": [music_clip]},
         ],
         "markers": [{"id": "mrk_manual0001", "t": drop, "kind": "manual", "strength": 1, "label": "DROP", "color": "#ffcc00"}],
-        "sections": [
-            {"id": f"sec_{i:010d}", "start": s, "end": e, "label": lbl, "energy": en}
-            for i, (s, e, lbl, en) in enumerate(SECTIONS)
-        ],
+        "sections": [],  # секции музыки — в clip.sections музыкального клипа (CONTRACT v1.4)
         "createdAt": TS, "updatedAt": TS, "revision": 3,
     }
 

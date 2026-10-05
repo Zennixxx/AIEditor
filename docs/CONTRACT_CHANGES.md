@@ -20,6 +20,18 @@ _пусто_
 
 ## Applied
 
+### v1.4 — подготовка фазы 2 (совместимо)
+- Дата: 2026-10-05
+- Автор: оркестратор
+- Что:
+  - `Clip.sections?: Section[]` — секции музыки из анализа в **source time**, едут вместе с клипом (DECISIONS #8). `project.sections` остаётся для секций композиции (ручные / ИИ, timeline time);
+  - EditOp += `setSections { target: {clipId} | "project", sections }` — замена списка секций целиком (`SectionInput` в `api.schema.json`); `ClipInput.sections?`;
+  - CONTRACT §2 инвариант 8 (секции отсортированы, не перекрываются, ID уникальны в проекте);
+  - CONTRACT §4 — точные правила переноса анализа в проект: `beats`/`downbeats` без дублей, strength 1; `onsets` → маркеры `onset`, скрытые по умолчанию; «Переанализировать» заменяет `bass`/`beat`/`downbeat`/`onset` и `clip.sections`;
+  - CONTRACT §6.1 п. 9–11 — семантика `setSections`, `splitClip` для секций клипа, snapping и `MarkerFilter.sectionLabels` по секциям клипов;
+  - `shared/fixtures/project.json`: секции перенесены из `project.sections` в `clip.sections` музыкального клипа.
+- Совместимость: да, `schemaVersion` остаётся 1 (поле и op новые; старые проекты с `project.sections` валидны). Фронту: `setSections` в `applyOps`, `splitClip` для секций, инварианты и lookup ID по `clip.sections`, snapping по секциям клипов, перенос анализа по §4. Бэку: учесть `setSections` и `clip.sections` при сухом прогоне ops (фаза 7).
+
 ### v1.3.1 — фаза 1b фронта (только документация)
 - Дата: 2026-10-05
 - Автор: frontend, утвердил оркестратор

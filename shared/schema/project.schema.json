@@ -187,6 +187,11 @@
         "volume": { "$ref": "#/definitions/Animatable" },
         "effects": { "type": "array", "items": { "$ref": "#/definitions/EffectItem" } },
         "markers": { "type": "array", "items": { "$ref": "#/definitions/Marker" } },
+        "sections": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Section" },
+          "description": "Секции музыки в SOURCE time (из анализа), двигаются вместе с клипом. Только у audio-клипов и видеоклипов со звуком."
+        },
         "interpolatedAssetId": { "type": "string" },
         "label": { "type": "string" },
         "color": { "type": "string" }
@@ -285,7 +290,11 @@
         "assets": { "type": "array", "items": { "$ref": "#/definitions/Asset" } },
         "tracks": { "type": "array", "items": { "$ref": "#/definitions/Track" } },
         "markers": { "type": "array", "items": { "$ref": "#/definitions/Marker" } },
-        "sections": { "type": "array", "items": { "$ref": "#/definitions/Section" } },
+        "sections": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Section" },
+          "description": "Секции композиции в timeline time (ручные / ИИ). Секции из анализа музыки живут в clip.sections."
+        },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "revision": { "type": "integer", "minimum": 0 }
