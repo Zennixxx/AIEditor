@@ -1,12 +1,13 @@
 // Команды редактора — общие для горячих клавиш и кнопок. Логика изменений — в model/, здесь только связка со сторами.
 import { copyItems, planDelete, planPaste, planSplitAt } from '@/model/edit'
-import { findItem } from '@/model/lookup'
+import { findItem, findMarker } from '@/model/lookup'
+import { neighborMarkerTime, planAddMarker, planDeleteMarkers, timelineMarkers } from '@/model/markers'
 import { trackInput } from '@/model/project'
 import { newTrackIndex } from '@/model/tracks'
 import type { TrackKind } from '@/shared/types.gen'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
-import { fitZoom, timeToX } from '@/timeline/geometry'
+import { fitZoom, followPlayhead, timeToX } from '@/timeline/geometry'
 
 const project = () => useProject.getState().project
 const ui = () => useUi.getState()
@@ -30,7 +31,40 @@ export function splitAtPlayhead(): void {
   useProject.getState().dispatch(ops, { label: 'Разрезать' })
 }
 
+/** Оставить в выделении только существующие маркеры. */
+export function liveMarkerSelection(): string[] {
+  const p = project()
+  return ui().markerSelection.filter((id) => findMarker(p, id))
+}
+
+/** `M`: маркер под плейхедом: на выделенный аудиоклип, иначе маркер проекта. Работает и при воспроизведении. */
+export function addMarkerAtPlayhead(): void {
+  const ops = planAddMarker(project(), ui().playhead, liveSelection())
+  const res = useProject.getState().dispatch(ops, { label: 'Маркер' })
+  if (res.ok) ui().selectMarkers(res.created.filter((id) => id.startsWith('mrk_')))
+}
+
+/** `Shift+←/→`: плейхед к предыдущему/следующему видимому маркеру (скрытые фильтром пропускаются). */
+export function gotoMarker(dir: 1 | -1): void {
+  const list = timelineMarkers(project(), ui().markerVisibility)
+  const t = neighborMarkerTime(list, ui().playhead, dir)
+  if (t === null) return
+  ui().setPlayhead(t) // плеер подхватывает внешний seek сам (как при скрабе по линейке)
+  const { pxPerSec, scrollX, viewWidth } = ui()
+  const x = followPlayhead({ pxPerSec, scrollX, width: viewWidth }, t)
+  if (x !== scrollX) ui().setScroll(x)
+}
+
 export function deleteSelection(ripple: boolean): void {
+  // выделенные маркеры удаляются раньше элементов дорожек
+  const markers = liveMarkerSelection()
+  if (markers.length > 0) {
+    const res = useProject.getState().dispatch(planDeleteMarkers(project(), markers), {
+      label: 'Удалить маркеры',
+    })
+    if (res.ok) ui().selectMarkers([])
+    return
+  }
   const ops = planDelete(project(), liveSelection(), ripple)
   const res = useProject.getState().dispatch(ops, { label: ripple ? 'Удалить со сдвигом' : 'Удалить' })
   if (res.ok) ui().select([])

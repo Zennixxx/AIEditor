@@ -20,8 +20,17 @@ function splitTransform(t: Transform, at: number): [Transform, Transform] {
  * Source-диапазоны стыкуются точно: левая половина заканчивается на том кадре исходника, с которого начинается правая.
  * У клипа с timeRemap половины получают fit="stretch" (точные диапазоны) и ключи, обрезанные по u.
  * Маркеры клипа (source time) уходят в ту половину, чей диапазон их содержит; эффекты клипа — по своему start.
+ * Секции клипа (source time, CONTRACT §6.1 п. 10) получает каждая половина, с чьим диапазоном они пересекаются, без обрезки;
+ * попавшая в обе остаётся с исходным ID слева, справа — новый (`newSectionId`).
  */
-export function splitClipData(clip: Clip, tau: number, rightId: string): { left: Clip; right: Clip } {
+export function splitClipData(
+  clip: Clip,
+  tau: number,
+  rightId: string,
+  newSectionId: () => string = () => {
+    throw new Error('newSectionId не задан')
+  },
+): { left: Clip; right: Clip } {
   const D = clip.duration
   const outEff = effectiveSourceOut(clip)
   const consumed = forwardSource(clip, tau) - clip.sourceIn
@@ -65,6 +74,14 @@ export function splitClipData(clip: Clip, tau: number, rightId: string): { left:
     opacity: or,
     effects: clip.effects.filter((e) => e.start >= tau - EPS).map((e) => ({ ...e, start: e.start - tau })),
     markers: rightMarkers,
+  }
+  if (clip.sections) {
+    const hits = (s: { start: number; end: number }, r: [number, number]) =>
+      s.start < r[1] - EPS && s.end > r[0] + EPS
+    left.sections = clip.sections.filter((s) => hits(s, leftRange))
+    right.sections = clip.sections
+      .filter((s) => hits(s, rightRange))
+      .map((s) => (hits(s, leftRange) ? { ...s, id: newSectionId() } : s))
   }
   if (vol) {
     left.volume = vol[0]

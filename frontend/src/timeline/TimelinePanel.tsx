@@ -3,6 +3,7 @@ import { Panel } from '@/panels/Panel'
 import { formatTimecode } from '@/shared/time'
 import { canRedo, canUndo, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
+import { MarkerFilter } from './MarkerFilter'
 import { Timeline } from './Timeline'
 import styles from './Timeline.module.css'
 
@@ -50,6 +51,8 @@ function Toolbar() {
       <button onClick={actions.zoomFit} title="Вписать всё (\)">
         ⇔
       </button>
+      <span className={styles.sep} />
+      <MarkerFilter />
       <span className={styles.sep} />
       <button onClick={() => actions.addTrack('video')} title="Добавить видеодорожку">
         +V

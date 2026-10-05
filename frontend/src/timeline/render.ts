@@ -3,7 +3,10 @@ import { EPS, itemEnd, sourceAtTimeline } from '@/model/clipTime'
 import { isClip } from '@/model/lookup'
 import { getEffectDef } from '@/shared/effects-registry'
 import type { Asset, Clip, Project, Thumbs, TrackItem, Waveform } from '@/shared/types.gen'
-import { RULER_H, rowScreenTop, timeToX, xToTime, type TrackRow, type View } from './geometry'
+import { SECTION_COLORS } from '@/model/markers'
+import type { TimelineSection } from '@/model/sections'
+import { RULER_H, SECTION_H, rowScreenTop, timeToX, xToTime, type TrackRow, type View } from './geometry'
+import type { MarkerView } from './markerLayout'
 import { rulerTicks } from './ruler'
 
 export interface Palette {
@@ -79,6 +82,10 @@ export interface Scene {
   playhead: number
   overlay: Overlay
   solo: readonly string[]
+  /** Видимые маркеры в экранных координатах (после фильтра и прореживания). */
+  markers: readonly MarkerView[]
+  /** Секции композиции и музыки в timeline time. */
+  sections: readonly TimelineSection[]
   media: MediaSource
   palette: Palette
 }
@@ -154,6 +161,7 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
     ctx.fillStyle = c.text
     ctx.fillText(dg.label, x0 + 6, top + 12)
   }
+  drawMarkerLines(ctx, s)
   ctx.restore()
 
   // рамка выделения
@@ -168,6 +176,8 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
   }
 
   drawRuler(ctx, s)
+  drawSections(ctx, s)
+  drawRulerMarkers(ctx, s)
 
   // линия привязки — через весь таймлайн
   if (s.overlay.snapAt !== null) {
@@ -228,9 +238,118 @@ function drawRuler(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.fillStyle = c.rulerText
   ctx.font = '10px ui-monospace, Consolas, monospace'
   for (const tick of ticks) {
-    if (tick.label) ctx.fillText(tick.label, Math.round(timeToX(tick.t, v)) + 4, 10)
+    if (tick.label) ctx.fillText(tick.label, Math.round(timeToX(tick.t, v)) + 4, SECTION_H + 10)
   }
   ctx.font = FONT
+}
+
+/** Полоса секций над линейкой: цветные плашки с подписью (секции композиции и музыки, в timeline time). */
+function drawSections(ctx: CanvasRenderingContext2D, s: Scene): void {
+  const { view: v, palette: c } = s
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, 0, v.width, SECTION_H)
+  ctx.clip()
+  ctx.fillStyle = c.ruler
+  ctx.fillRect(0, 0, v.width, SECTION_H)
+  ctx.font = '9px "Inter Variable", Inter, system-ui, sans-serif'
+  ctx.textBaseline = 'middle'
+  for (const sec of s.sections) {
+    const x0 = timeToX(sec.start, v)
+    const x1 = timeToX(sec.end, v)
+    if (x1 < 0 || x0 > v.width) continue
+    const w = x1 - x0
+    ctx.fillStyle = SECTION_COLORS[sec.label] ?? SECTION_COLORS.other!
+    ctx.globalAlpha = 0.35 + 0.5 * sec.energy
+    ctx.fillRect(x0, 1, Math.max(1, w - 1), SECTION_H - 2)
+    ctx.globalAlpha = 1
+    if (w > 28) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x0, 0, w - 1, SECTION_H)
+      ctx.clip()
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(sec.label, Math.max(x0, 0) + 4, SECTION_H / 2 + 0.5)
+      ctx.restore()
+    }
+  }
+  ctx.restore()
+}
+
+/** Высота треугольника маркера клипа от силы. */
+function triHeight(strength: number): number {
+  return 4 + 8 * strength
+}
+
+/** Маркеры клипов: тонкие линии вниз через все дорожки (яркость = сила) и треугольники у верха клипа. */
+function drawMarkerLines(ctx: CanvasRenderingContext2D, s: Scene): void {
+  const { view: v } = s
+  for (const m of s.markers) {
+    if (m.clipId === null) {
+      drawLine(ctx, m, v.height)
+      continue
+    }
+    const h = triHeight(m.strength)
+    drawLine(ctx, { ...m, lineFrom: m.bandTop + h }, v.height)
+    ctx.globalAlpha = 0.55 + 0.45 * m.strength
+    ctx.fillStyle = m.color
+    ctx.beginPath()
+    ctx.moveTo(m.x - 4, m.bandTop)
+    ctx.lineTo(m.x + 4, m.bandTop)
+    ctx.lineTo(m.x, m.bandTop + h)
+    ctx.closePath()
+    ctx.fill()
+    if (m.selected) {
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.lineWidth = 1
+    }
+    ctx.globalAlpha = 1
+    if (m.label) drawMarkerLabel(ctx, m, m.bandTop + 20)
+  }
+}
+
+function drawLine(ctx: CanvasRenderingContext2D, m: MarkerView, bottom: number): void {
+  const x = Math.round(m.x)
+  ctx.globalAlpha = m.selected ? 0.9 : 0.1 + 0.35 * m.strength
+  ctx.fillStyle = m.selected ? '#ffffff' : m.color
+  ctx.fillRect(x, m.lineFrom, 1, bottom - m.lineFrom)
+  ctx.globalAlpha = 1
+}
+
+function drawMarkerLabel(ctx: CanvasRenderingContext2D, m: MarkerView, y: number): void {
+  if (!m.label) return
+  ctx.font = '10px "Inter Variable", Inter, system-ui, sans-serif'
+  ctx.textBaseline = 'middle'
+  const w = ctx.measureText(m.label).width + 8
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  ctx.fillRect(m.x + 3, y - 7, w, 14)
+  ctx.fillStyle = m.color
+  ctx.fillText(m.label, m.x + 7, y)
+}
+
+/** Маркеры проекта — треугольники на линейке (линии вниз уже нарисованы вместе с дорожками). */
+function drawRulerMarkers(ctx: CanvasRenderingContext2D, s: Scene): void {
+  for (const m of s.markers) {
+    if (m.clipId !== null) continue
+    const h = 5 + 5 * m.strength
+    ctx.fillStyle = m.color
+    ctx.beginPath()
+    ctx.moveTo(m.x - 4, m.bandTop)
+    ctx.lineTo(m.x + 4, m.bandTop)
+    ctx.lineTo(m.x, m.bandTop + h)
+    ctx.closePath()
+    ctx.fill()
+    if (m.selected) {
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.lineWidth = 1
+    }
+    if (m.label) drawMarkerLabel(ctx, m, m.bandTop - 0 + 6)
+  }
 }
 
 interface ItemStyle {

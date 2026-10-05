@@ -11,6 +11,8 @@ import type {
   MarkerInput,
   Project,
   RampKeyframe,
+  Section,
+  SectionInput,
   Track,
 } from '@/shared/types.gen'
 import { getEffectDef } from '@/shared/effects-registry'
@@ -20,6 +22,7 @@ import { splitClipData } from '../clipEdit'
 import { checkInvariants } from '../invariants'
 import { findClip, findEffect, findMarker, findTrack, collectIds, isClip, trackAcceptsAsset } from '../lookup'
 import { finalizeProject } from '../project'
+import { SECTION_LABELS, sectionListError } from '../sections'
 import { integral } from '../timeRemap'
 import { OpsError } from './errors'
 
@@ -205,6 +208,8 @@ class Tx {
           this.release(ref.marker.id)
         }
         return
+      case 'setSections':
+        return this.setSections(op.target, op.sections)
       case 'addEffect':
         return this.addEffect(op.target, op.effect)
       case 'updateEffect': {
@@ -292,12 +297,20 @@ class Tx {
     const { id: requested, ...rest } = structuredClone(input)
     const clip: Clip = { ...rest, id: this.alloc('clp', requested), type: 'clip' }
     clip.markers = clip.markers.map((m) => ({ ...m, id: this.alloc('mrk', m.id) }))
+    if (clip.sections) clip.sections = this.sectionList(clip.sections)
     clip.effects = clip.effects.map((e) => this.effectItem(e))
     track.items.push(clip)
   }
 
   private updateClip(clipId: string, patch: Extract<EditOp, { op: 'updateClip' }>['patch']): void {
     const { clip, track } = this.clip(clipId)
+    // CONTRACT §6.1 п. 9: маркеры и секции клипа меняются только marker-ops и setSections
+    if ('markers' in patch || 'sections' in patch) {
+      throw new OpsError(
+        'bad_value',
+        'updateClip не меняет markers/sections — используйте marker-ops и setSections',
+      )
+    }
     if (patch.assetId !== undefined) {
       const asset = this.asset(patch.assetId)
       if (!trackAcceptsAsset(track, asset.kind)) {
@@ -334,7 +347,7 @@ class Tx {
       throw new OpsError('split_out_of_range', `Точка разреза ${at} вне клипа ${clip.id}`)
     }
     const plain: Clip = isDraft(clip) ? current(clip) : structuredClone(clip)
-    const { left, right } = splitClipData(plain, at - clip.start, this.alloc('clp'))
+    const { left, right } = splitClipData(plain, at - clip.start, this.alloc('clp'), () => this.alloc('sec'))
     const moved = new Set(right.markers.map((m) => m.id))
     track.items.splice(index, 1, left, right)
     // эффекты, привязанные к ушедшим в правую половину маркерам, переадресуются
@@ -381,6 +394,47 @@ class Tx {
       list.push(m)
     }
     list.sort(byT)
+  }
+
+  /** Секции с проверкой и выделением ID (tmp_/без id → новые sec_). Список должен быть уже отсортирован. */
+  private sectionList(input: readonly SectionInput[]): Section[] {
+    const sorted = [...input].sort((a, b) => a.start - b.start)
+    for (const s of sorted) {
+      if (!SECTION_LABELS.includes(s.label))
+        throw new OpsError('bad_value', `Неизвестная метка секции ${String(s.label)}`)
+      if (!(Number.isFinite(s.energy) && s.energy >= 0 && s.energy <= 1))
+        throw new OpsError('bad_value', 'energy секции вне 0..1')
+    }
+    const err = sectionListError(sorted)
+    if (err) throw new OpsError('bad_value', err)
+    return sorted.map((s) => {
+      const { id: requested, ...rest } = structuredClone(s)
+      return { ...rest, id: this.alloc('sec', requested) }
+    })
+  }
+
+  /** CONTRACT §6.1 п. 9: заменяет весь список секций цели (source time для клипа, timeline time для проекта). */
+  private setSections(target: Extract<EditOp, { op: 'setSections' }>['target'], input: SectionInput[]): void {
+    let owner: { sections?: Section[] }
+    let old: readonly Section[]
+    if (target === 'project') {
+      owner = this.p
+      old = this.p.sections
+    } else {
+      const { clip, track } = this.clip(target.clipId)
+      const asset = this.p.assets.find((a) => a.id === clip.assetId)
+      if (track.kind !== 'audio' && !(track.kind === 'video' && asset?.hasAudio)) {
+        throw new OpsError(
+          'bad_value',
+          'Секции музыки можно задать только аудиоклипу или видеоклипу со звуком',
+        )
+      }
+      owner = clip
+      old = clip.sections ?? []
+    }
+    // старые ID освобождаются, чтобы можно было сохранить их в новом списке
+    for (const s of old) this.release(s.id)
+    owner.sections = this.sectionList(input)
   }
 
   private addEffect(

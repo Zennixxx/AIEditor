@@ -2,11 +2,14 @@
 // drop ассета из Media Bin, зум/скролл. Состояние жестов — здесь; проект меняется только через dispatch.
 import { planAssetDrop, planMove, planTrim, pickTrackForAsset, type ItemMove } from '@/model/edit'
 import { isClip } from '@/model/lookup'
+import { isMarkerVisible, markerOrigins, planMoveMarkers, type MarkerOrigin } from '@/model/markers'
+import { timelineSections, type TimelineSection } from '@/model/sections'
 import { assetClipDuration } from '@/model/project'
 import { collectSnapTargets, snapPoint, snapSpan, snapThreshold, type SnapTarget } from '@/model/snapping'
 import { snapToFrame } from '@/shared/time'
 import type { Project, Track, TrackItem } from '@/shared/types.gen'
 import { useAssets } from '@/store/assets'
+import { autoAnalyzeClips } from '@/store/analysis'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import {
@@ -19,6 +22,7 @@ import {
   type TrackRow,
   type View,
 } from './geometry'
+import { hitMarker, layoutMarkers, markersInRect, type MarkerView } from './markerLayout'
 import { emptyOverlay, type Overlay } from './render'
 
 export interface PointerInfo {
@@ -62,6 +66,21 @@ type Gesture =
       key: string
     }
   | { kind: 'box'; x0: number; y0: number; base: string[] }
+  | { kind: 'markerBox'; x0: number; y0: number; base: string[] }
+  | {
+      kind: 'marker'
+      downX: number
+      started: boolean
+      primaryId: string
+      /** Позиция главного маркера на таймлайне в начале жеста. */
+      primaryT0: number
+      origins: MarkerOrigin[]
+      targets: SnapTarget[]
+      lastDelta: number
+      key: string
+      /** Клик по уже выделенному маркеру без движения: выделить только его. */
+      collapseTo: string | null
+    }
 
 const DRAG_THRESHOLD_PX = 3
 let gestureSeq = 0
@@ -77,6 +96,8 @@ export class TimelineController {
   private gesture: Gesture | null = null
   private rowsCache: { project: Project; rows: TrackRow[] } | null = null
   private dropTargets: SnapTarget[] | null = null
+  private markerCache: { key: readonly unknown[]; value: MarkerView[] } | null = null
+  private sectionCache: { project: Project; value: TimelineSection[] } | null = null
 
   constructor(private readonly host: ControllerHost) {}
 
@@ -101,11 +122,45 @@ export class TimelineController {
     }
   }
 
-  private targets(exclude: Iterable<string>): SnapTarget[] {
+  private targets(exclude: Iterable<string>, excludeMarkers?: ReadonlySet<string>): SnapTarget[] {
+    const vis = useUi.getState().markerVisibility
     return collectSnapTargets(useProject.getState().project, {
       playhead: useUi.getState().playhead,
       exclude: new Set(exclude),
+      // скрытые фильтром маркеры не участвуют в привязке
+      markerVisible: (m) => isMarkerVisible(m, vis),
+      ...(excludeMarkers ? { excludeMarkers } : {}),
     })
+  }
+
+  /** Маркеры в экранных координатах (кэш по проекту, виду, фильтру и выделению). */
+  markers(): MarkerView[] {
+    const { markerVisibility, markerSelection } = useUi.getState()
+    const v = this.view()
+    const project = useProject.getState().project
+    const key = [
+      project,
+      v.pxPerSec,
+      v.scrollX,
+      v.scrollY,
+      v.width,
+      v.height,
+      markerVisibility,
+      markerSelection,
+    ]
+    const c = this.markerCache
+    if (c && c.key.every((k, i) => k === key[i])) return c.value
+    const value = layoutMarkers(project, this.rows(), v, markerVisibility, new Set(markerSelection))
+    this.markerCache = { key, value }
+    return value
+  }
+
+  /** Секции композиции и музыки в timeline time (кэш по проекту). */
+  sections(): TimelineSection[] {
+    const project = useProject.getState().project
+    if (this.sectionCache?.project !== project)
+      this.sectionCache = { project, value: timelineSections(project) }
+    return this.sectionCache.value
   }
 
   // --- указатель ---
@@ -117,6 +172,21 @@ export class TimelineController {
     const hit = hitTest(rows, v, p.x, p.y)
     const ui = useUi.getState()
     const fps = useProject.getState().project.fps
+
+    // маркеры - над всем остальным (в том числе над линейкой)
+    const marker = hitMarker(this.markers(), p.x, p.y)
+    if (marker) return this.pointerDownMarker(marker, p)
+    if (!p.ctrl && !p.shift && !p.alt && ui.markerSelection.length > 0) ui.selectMarkers([])
+    if (p.alt) {
+      // Alt + рамка: выделение маркеров
+      this.gesture = {
+        kind: 'markerBox',
+        x0: p.x,
+        y0: p.y,
+        base: p.ctrl || p.shift ? ui.markerSelection : [],
+      }
+      return true
+    }
 
     if (hit.area === 'ruler') {
       this.gesture = { kind: 'scrub' }
@@ -184,6 +254,48 @@ export class TimelineController {
     return false
   }
 
+  private pointerDownMarker(m: MarkerView, p: PointerInfo): boolean {
+    const ui = useUi.getState()
+    let selection = ui.markerSelection
+    let collapseTo: string | null = null
+    if (p.ctrl || p.shift) {
+      selection = selection.includes(m.id) ? selection.filter((s) => s !== m.id) : [...selection, m.id]
+      ui.selectMarkers(selection)
+      if (!selection.includes(m.id)) return true
+    } else if (!selection.includes(m.id)) {
+      selection = [m.id]
+      ui.selectMarkers(selection)
+    } else {
+      collapseTo = m.id
+    }
+    const project = useProject.getState().project
+    const origins = markerOrigins(project, selection)
+    const primary = origins.find((o) => o.id === m.id)
+    if (!primary) return true
+    this.gesture = {
+      kind: 'marker',
+      downX: p.x,
+      started: false,
+      primaryId: m.id,
+      primaryT0: primary.t,
+      origins,
+      targets: this.targets([], new Set(origins.map((o) => o.id))),
+      lastDelta: 0,
+      key: `marker:${m.id}:${++gestureSeq}`,
+      collapseTo,
+    }
+    return true
+  }
+
+  /** Двойной клик по маркеру: редактирование label/цвета в инспекторе. */
+  doubleClick(p: PointerInfo): boolean {
+    const m = hitMarker(this.markers(), p.x, p.y)
+    if (!m) return false
+    useUi.getState().selectMarkers([m.id])
+    useUi.getState().focusMarker(m.id)
+    return true
+  }
+
   private collectMoveItems(rows: readonly TrackRow[], ids: readonly string[]): MoveItem[] {
     const want = new Set(ids)
     const res: MoveItem[] = []
@@ -224,7 +336,35 @@ export class TimelineController {
       }
       case 'move':
         return this.dragMove(g, p, v)
+      case 'markerBox': {
+        this.overlay.box = { x0: g.x0, y0: g.y0, x1: p.x, y1: p.y }
+        const inside = markersInRect(this.markers(), this.rows(), v, this.overlay.box)
+        useUi.getState().selectMarkers([...g.base, ...inside])
+        this.host.redraw()
+        return
+      }
+      case 'marker':
+        return this.dragMarker(g, p, v)
     }
+  }
+
+  private dragMarker(g: Extract<Gesture, { kind: 'marker' }>, p: PointerInfo, v: View): void {
+    if (!g.started) {
+      if (Math.abs(p.x - g.downX) < DRAG_THRESHOLD_PX) return
+      g.started = true
+    }
+    // привязка и квантование к кадру - по главному маркеру; остальные едут на ту же дельту
+    const raw = g.primaryT0 + (p.x - g.downX) / v.pxPerSec
+    const snapped = snapPoint(raw, g.targets, this.snapOpts(p.shift))
+    this.overlay.snapAt = snapped.snappedAt
+    const delta = snapped.value - g.primaryT0
+    if (Math.abs(delta - g.lastDelta) > 1e-9) {
+      g.lastDelta = delta
+      const project = useProject.getState().project
+      const ops = planMoveMarkers(project, g.origins, delta)
+      useProject.getState().dispatch(ops, { label: 'Переместить маркер', mergeKey: g.key })
+    }
+    this.host.redraw()
   }
 
   private dragMove(g: Extract<Gesture, { kind: 'move' }>, p: PointerInfo, v: View): void {
@@ -271,6 +411,10 @@ export class TimelineController {
     this.gesture = null
     if (!g) return
     if (g.kind === 'trim') useProject.getState().sealHistory()
+    if (g.kind === 'marker') {
+      if (g.started) useProject.getState().sealHistory()
+      else if (g.collapseTo) useUi.getState().selectMarkers([g.collapseTo])
+    }
     if (g.kind === 'move') {
       if (g.started && g.moves) {
         const ops = planMove(useProject.getState().project, g.moves, { rippleInsert: p.alt })
@@ -284,7 +428,8 @@ export class TimelineController {
   }
 
   cancel(): void {
-    if (this.gesture?.kind === 'trim') useProject.getState().sealHistory()
+    if (this.gesture?.kind === 'trim' || (this.gesture?.kind === 'marker' && this.gesture.started))
+      useProject.getState().sealHistory()
     this.gesture = null
     this.overlay = emptyOverlay()
     this.host.redraw()
@@ -295,7 +440,8 @@ export class TimelineController {
     const hit = hitTest(this.rows(), v, p.x, p.y)
     const tool = useUi.getState().tool
     let cursor = 'default'
-    if (hit.area === 'ruler') cursor = 'text'
+    if (hitMarker(this.markers(), p.x, p.y)) cursor = 'pointer'
+    else if (hit.area === 'ruler') cursor = 'text'
     else if (tool === 'blade' && hit.area === 'item') cursor = 'crosshair'
     else if (hit.area === 'item' && !hit.row.track.locked) cursor = hit.zone === 'body' ? 'grab' : 'ew-resize'
     this.host.setCursor(cursor)
@@ -377,7 +523,12 @@ export class TimelineController {
       ...(plan.hoveredId ? { trackId: plan.hoveredId } : {}),
     })
     const res = useProject.getState().dispatch(ops, { label: 'Добавить клип' })
-    if (res.ok) useUi.getState().select(res.created.filter((id) => id.startsWith('clp_')))
+    if (res.ok) {
+      const clips = res.created.filter((id) => id.startsWith('clp_'))
+      useUi.getState().select(clips)
+      // новый аудиоклип: сразу запускаем анализ музыки (или применяем готовый)
+      if (plan.asset.kind === 'audio') autoAnalyzeClips(clips)
+    }
   }
 
   dragLeave(): void {

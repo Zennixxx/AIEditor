@@ -2,6 +2,7 @@
 import type { Project } from '@/shared/types.gen'
 import { EPS, effectiveSourceOut, itemEnd } from './clipTime'
 import { isClip } from './lookup'
+import { sectionListError } from './sections'
 
 export interface Violation {
   code: string
@@ -25,6 +26,12 @@ export function checkInvariants(p: Project): Violation[] {
     markerIds.add(m.id)
   }
   for (const s of p.sections) unique(s.id)
+  // 8. секции списка отсортированы, start < end, не перекрываются
+  const sectionList = (owner: string, list: readonly { start: number; end: number }[]) => {
+    const err = sectionListError(list)
+    if (err) v('bad_sections', `${owner}: ${err}`)
+  }
+  sectionList('project.sections', p.sections)
 
   for (const track of p.tracks) {
     unique(track.id)
@@ -51,6 +58,10 @@ export function checkInvariants(p: Project): Violation[] {
       for (const m of item.markers) {
         unique(m.id)
         markerIds.add(m.id)
+      }
+      if (item.sections) {
+        for (const s of item.sections) unique(s.id)
+        sectionList(`${item.id}.sections`, item.sections)
       }
 
       // 5. ссылка на ассет

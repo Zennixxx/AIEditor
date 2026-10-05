@@ -3,7 +3,12 @@ import { itemEnd } from '@/model/clipTime'
 import { displayOrder } from '@/model/tracks'
 import type { Project, Track, TrackItem, TrackKind } from '@/shared/types.gen'
 
-export const RULER_H = 28
+/** Полоса секций над линейкой (цветные плашки intro/build/drop…). */
+export const SECTION_H = 14
+/** Линейка со шкалой времени (под полосой секций). */
+export const RULER_BASE_H = 28
+/** Вся «шапка» таймлайна: полоса секций + линейка. Всё, что выше этой границы, — область скраба. */
+export const RULER_H = SECTION_H + RULER_BASE_H
 export const TRACK_H: Record<TrackKind, number> = { video: 64, audio: 56, fx: 30 }
 /** Зона трима у края элемента, px. */
 export const EDGE_PX = 6

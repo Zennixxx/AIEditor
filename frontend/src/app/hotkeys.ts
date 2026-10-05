@@ -3,8 +3,12 @@ import { player } from '@/playback/player'
 import { useUi } from '@/store/ui'
 import * as actions from './actions'
 
+/** Ползунки, флажки и т. п. не вводят текст: горячие клавиши работают, даже если фокус остался на них. */
+const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'color'])
+
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
+  if (target instanceof HTMLInputElement && NON_TEXT_INPUTS.has(target.type)) return false
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
@@ -32,6 +36,9 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (code === 'KeyJ') return run(() => player.shuttle(-1))
   if (code === 'KeyK') return run(() => player.pause())
   if (code === 'KeyL') return run(() => player.shuttle(1))
+  if (e.shiftKey && key === 'arrowleft') return run(() => actions.gotoMarker(-1))
+  if (e.shiftKey && key === 'arrowright') return run(() => actions.gotoMarker(1))
+  if (code === 'KeyM') return e.repeat || run(actions.addMarkerAtPlayhead)
   if (!e.shiftKey && key === 'arrowleft') return run(() => player.step(-1))
   if (!e.shiftKey && key === 'arrowright') return run(() => player.step(1))
   if (key === 'home') return run(() => player.home())
@@ -49,6 +56,7 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (key === '\\' || code === 'Backslash') return run(actions.zoomFit)
   if (key === 'escape') {
     useUi.getState().select([])
+    useUi.getState().selectMarkers([])
     useUi.getState().setTool('select')
     return true
   }

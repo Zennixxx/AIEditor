@@ -83,3 +83,21 @@ export function sampleProject(): Project {
     revision: 0,
   }
 }
+
+/** Проект с музыкальным клипом: A1: музыка на таймлайне с 10 с, source 20..50 (30 с). */
+export function musicProject(extra: Partial<Clip> = {}): Project {
+  const p = sampleProject()
+  const base = clipFromAsset(audioAsset, 10, 30)
+  const clip: Clip = {
+    ...base,
+    id: 'clp_music',
+    start: 10,
+    duration: 30,
+    sourceIn: 20,
+    sourceOut: 50,
+    ...extra,
+  }
+  p.tracks.find((t) => t.id === 'trk_a1')!.items.push(clip)
+  p.duration = 40
+  return p
+}

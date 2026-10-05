@@ -4,7 +4,7 @@ import type { Clip, EditOp, EffectItem, Project } from '@/shared/types.gen'
 import { checkInvariants } from '../invariants'
 import { findClip, findEffect, findMarker, findTrack } from '../lookup'
 import { clipFromAsset } from '../project'
-import { audioAsset, sampleProject, seqIds, videoAsset } from '../testUtils'
+import { audioAsset, musicProject, sampleProject, seqIds, videoAsset } from '../testUtils'
 import { applyOps, OpsError } from './applyOps'
 
 const ctx = () => ({
@@ -381,5 +381,150 @@ describe('applyOps', () => {
       [{ op: 'addClip', trackId: 'trk_v2', clip: { ...clipFromAsset(videoAsset, 0, 30), id: 'clp_a' } }],
       'duplicate_id',
     )
+  })
+
+  describe('sections (CONTRACT v1.4)', () => {
+    const sec = (start: number, end: number, label: 'intro' | 'drop' | 'build' = 'drop') => ({
+      start,
+      end,
+      label,
+      energy: 0.5,
+    })
+    type SecInput = ReturnType<typeof sec> & { id?: string }
+
+    it('setSections on a clip: replaces the list, sorts input, assigns sec_ ids, keeps given ids', () => {
+      const p = musicProject()
+      const r1 = run(p, [
+        {
+          op: 'setSections',
+          target: { clipId: 'clp_music' },
+          sections: [sec(30, 40), { ...sec(20, 30, 'intro'), id: 'sec_keep' }],
+        },
+      ])
+      const list = clipOf(r1.project, 'clp_music').sections!
+      expect(list.map((s) => s.start)).toEqual([20, 30])
+      expect(list[0]!.id).toBe('sec_keep')
+      expect(list[1]!.id).toMatch(/^sec_/)
+      expect(r1.project.sections).toEqual([])
+      // повторная замена: прежний ID можно сохранить, пустой массив очищает
+      const r2 = run(r1.project, [
+        {
+          op: 'setSections',
+          target: { clipId: 'clp_music' },
+          sections: [{ ...sec(22, 25), id: 'sec_keep' }],
+        },
+      ])
+      expect(clipOf(r2.project, 'clp_music').sections!.map((s) => s.id)).toEqual(['sec_keep'])
+      const r3 = run(r2.project, [{ op: 'setSections', target: { clipId: 'clp_music' }, sections: [] }])
+      expect(clipOf(r3.project, 'clp_music').sections).toEqual([])
+    })
+
+    it('setSections on the project (timeline time) and tmp_ ids', () => {
+      const p = sampleProject()
+      const res = run(p, [
+        { op: 'setSections', target: 'project', sections: [{ ...sec(0, 1), id: 'tmp_s' }] },
+      ])
+      expect(res.project.sections).toHaveLength(1)
+      expect(res.idMap['tmp_s']).toBe(res.project.sections[0]!.id)
+    })
+
+    it('setSections rejects overlaps, start ≥ end, bad labels, wrong targets and duplicate ids', () => {
+      const p = musicProject()
+      const set = (sections: SecInput[], target: 'project' | { clipId: string } = { clipId: 'clp_music' }) =>
+        [{ op: 'setSections', target, sections }] as EditOp[]
+      expectReject(p, set([sec(0, 10), sec(9, 20)]), 'bad_value')
+      expectReject(p, set([sec(5, 5)]), 'bad_value')
+      expectReject(p, set([sec(6, 5)]), 'bad_value')
+      expectReject(p, set([{ ...sec(0, 1), label: 'chorus' as 'drop' }]), 'bad_value')
+      expectReject(p, set([sec(0, 1)], { clipId: 'clp_nope' }), 'clip_not_found')
+      // видеоклип без звука — нельзя
+      const silent = musicProject()
+      silent.assets.find((a) => a.id === videoAsset.id)!.hasAudio = false
+      expectReject(silent, set([sec(0, 1)], { clipId: 'clp_a' }), 'bad_value')
+      // видеоклип со звуком — можно
+      expect(run(p, set([sec(0, 1)], { clipId: 'clp_a' })).project).toBeTruthy()
+      // ID секции другого списка → дубликат
+      const withProjectSec = run(p, [
+        { op: 'setSections', target: 'project', sections: [{ ...sec(0, 1), id: 'sec_p' }] },
+      ]).project
+      expectReject(withProjectSec, set([{ ...sec(0, 1), id: 'sec_p' }]), 'duplicate_id')
+    })
+
+    it('updateClip cannot touch markers or sections', () => {
+      const p = musicProject()
+      expectReject(
+        p,
+        [{ op: 'updateClip', clipId: 'clp_music', patch: { sections: [] } as never }],
+        'bad_value',
+      )
+      expectReject(
+        p,
+        [{ op: 'updateClip', clipId: 'clp_music', patch: { markers: [] } as never }],
+        'bad_value',
+      )
+    })
+
+    it('splitClip divides clip.sections; a section in both halves keeps its id on the left, gets a new id on the right', () => {
+      const p = run(musicProject(), [
+        {
+          op: 'setSections',
+          target: { clipId: 'clp_music' },
+          sections: [
+            { ...sec(20, 28, 'intro'), id: 'sec_a' },
+            { ...sec(28, 38), id: 'sec_b' }, // пересекает точку разреза (source 35)
+            { ...sec(38, 50, 'build'), id: 'sec_c' },
+          ],
+        },
+      ]).project
+      // разрез на timeline 25 → source 35
+      const res = run(p, [{ op: 'splitClip', clipId: 'clp_music', at: 25 }])
+      const [left, right] = res.project.tracks.find((t) => t.id === 'trk_a1')!.items as Clip[]
+      expect(left!.sections!.map((s) => s.id)).toEqual(['sec_a', 'sec_b'])
+      expect(right!.sections!.map((s) => s.start)).toEqual([28, 38])
+      expect(right!.sections![0]!.id).not.toBe('sec_b')
+      expect(right!.sections![0]!.id).toMatch(/^sec_/)
+      expect(right!.sections![1]!.id).toBe('sec_c')
+      // границы не обрезаются (CONTRACT §6.1 п. 10)
+      expect(left!.sections![1]).toMatchObject({ start: 28, end: 38 })
+      expect(checkInvariants(res.project)).toEqual([])
+      // исходный проект не изменился
+      expect(clipOf(p, 'clp_music').sections).toHaveLength(3)
+    })
+
+    it('splitClip on a clip without sections leaves sections undefined', () => {
+      const res = run(musicProject(), [{ op: 'splitClip', clipId: 'clp_music', at: 25 }])
+      const items = res.project.tracks.find((t) => t.id === 'trk_a1')!.items as Clip[]
+      expect(items.every((c) => c.sections === undefined)).toBe(true)
+    })
+
+    it('addClip with sections allocates fresh ids for tmp_ ones; duplicates are rejected', () => {
+      const p = sampleProject()
+      const base = { ...clipFromAsset(audioAsset, 0, 30), sections: [{ ...sec(0, 5), id: 'tmp_s1' }] }
+      const res = run(p, [{ op: 'addClip', trackId: 'trk_a1', clip: base as never }])
+      const clip = res.project.tracks.find((t) => t.id === 'trk_a1')!.items[0] as Clip
+      expect(clip.sections![0]!.id).toMatch(/^sec_/)
+      const dup = {
+        ...base,
+        sections: [
+          { ...sec(0, 5), id: 'sec_same' },
+          { ...sec(6, 7), id: 'sec_same' },
+        ],
+      }
+      expectReject(p, [{ op: 'addClip', trackId: 'trk_a1', clip: dup as never }], 'duplicate_id')
+    })
+
+    it('invariant 8: unsorted/overlapping lists and duplicate ids across project and clips are reported', () => {
+      const p = musicProject()
+      clipOf(p, 'clp_music').sections = [
+        { id: 'sec_1', start: 5, end: 10, label: 'drop', energy: 1 },
+        { id: 'sec_2', start: 8, end: 12, label: 'drop', energy: 1 },
+      ]
+      expect(checkInvariants(p).map((v) => v.code)).toContain('bad_sections')
+      clipOf(p, 'clp_music').sections = [{ id: 'sec_1', start: 5, end: 10, label: 'drop', energy: 1 }]
+      p.sections = [{ id: 'sec_1', start: 0, end: 1, label: 'intro', energy: 0 }]
+      expect(checkInvariants(p).map((v) => v.code)).toContain('duplicate_id')
+      p.sections = []
+      expect(checkInvariants(p)).toEqual([])
+    })
   })
 })

@@ -98,6 +98,7 @@ export function collectIds(p: Project): Set<string> {
       if (isClip(i)) {
         for (const e of i.effects) ids.add(e.id)
         for (const m of i.markers) ids.add(m.id)
+        for (const sec of i.sections ?? []) ids.add(sec.id)
       }
     }
   }

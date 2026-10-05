@@ -296,6 +296,7 @@ function pasteOp(item: TrackItem, start: number, trackId: string, tmpId: () => s
       // anchor внутри копии указывал бы на маркеры оригинала — снимаем
       effects: item.effects.map(({ anchor: _anchor, ...e }): EffectItem => ({ ...e, id: tmpId() })),
       markers: item.markers.map((m) => ({ ...m, id: tmpId() })),
+      ...(item.sections ? { sections: item.sections.map((sec) => ({ ...sec, id: tmpId() })) } : {}),
     },
   }
 }

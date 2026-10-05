@@ -91,6 +91,8 @@ export function Timeline() {
         playhead: ui.playhead,
         overlay: controller.overlay,
         solo: ui.solo,
+        markers: controller.markers(),
+        sections: controller.sections(),
         media,
         palette,
       })
@@ -141,6 +143,9 @@ export function Timeline() {
     }
     const onMove = (e: PointerEvent) => controller.pointerMove(pointerInfo(e, canvas))
     const onUp = (e: PointerEvent) => controller.pointerUp(pointerInfo(e, canvas))
+    const onDouble = (e: MouseEvent) => {
+      controller.doubleClick(pointerInfo(e, canvas))
+    }
     const onCancel = () => controller.cancel()
     const onLeave = () => controller.leave()
     const onWheel = (e: WheelEvent) => {
@@ -157,6 +162,7 @@ export function Timeline() {
     canvas.addEventListener('pointerdown', onDown)
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('dblclick', onDouble)
     canvas.addEventListener('pointercancel', onCancel)
     canvas.addEventListener('pointerleave', onLeave)
     canvas.addEventListener('wheel', onWheel, { passive: false })
@@ -168,6 +174,7 @@ export function Timeline() {
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
+      canvas.removeEventListener('dblclick', onDouble)
       canvas.removeEventListener('pointercancel', onCancel)
       canvas.removeEventListener('pointerleave', onLeave)
       canvas.removeEventListener('wheel', onWheel)

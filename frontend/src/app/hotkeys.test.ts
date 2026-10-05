@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { allClips } from '@/model/lookup'
-import { sampleProject } from '@/model/testUtils'
+import { allClips, findClip } from '@/model/lookup'
+import { DEFAULT_VISIBILITY } from '@/model/markers'
+import { musicProject, sampleProject } from '@/model/testUtils'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { handleHotkey } from './hotkeys'
@@ -108,5 +109,88 @@ describe('hotkeys', () => {
     Object.defineProperty(e, 'target', { value: input })
     expect(handleHotkey(e)).toBe(false)
     input.remove()
+  })
+})
+
+describe('marker hotkeys', () => {
+  beforeEach(() => {
+    const p = musicProject() // музыка: start 10, source 20..50
+    useProject.getState().load(p)
+    useProject.getState().dispatch([
+      {
+        op: 'addMarkers',
+        target: { clipId: 'clp_music' },
+        markers: [
+          { id: 'mrk_a', t: 22, kind: 'bass', strength: 0.9 }, // timeline 12
+          { id: 'mrk_on', t: 24, kind: 'onset', strength: 1 }, // 14, скрыт по умолчанию
+          { id: 'mrk_weak', t: 26, kind: 'bass', strength: 0.1 }, // 16
+          { id: 'mrk_b', t: 28, kind: 'bass', strength: 0.8 }, // 18
+        ],
+      },
+    ])
+    useUi.setState({
+      selection: [],
+      markerSelection: [],
+      markerVisibility: DEFAULT_VISIBILITY,
+      playhead: 0,
+      tool: 'select',
+    })
+  })
+
+  const markers = () => findClip(useProject.getState().project, 'clp_music')!.clip.markers
+  const projectMarkers = () => useProject.getState().project.markers
+
+  it('M adds a project marker, or a clip marker when an audio clip under the playhead is selected', () => {
+    useUi.setState({ playhead: 5 })
+    expect(press('KeyM', 'm')).toBe(true)
+    expect(projectMarkers().map((m) => [m.t, m.kind])).toEqual([[5, 'manual']])
+    expect(useUi.getState().markerSelection).toHaveLength(1)
+
+    useUi.setState({ playhead: 15, selection: ['clp_music'] })
+    press('KeyM', 'ь') // русская раскладка
+    const added = markers().find((m) => m.kind === 'manual')!
+    expect(added.t).toBeCloseTo(25, 9) // 20 + (15 − 10)
+    // повтор клавиши (удержание) маркеры не плодит
+    press('KeyM', 'm', { repeat: true })
+    expect(markers().filter((m) => m.kind === 'manual')).toHaveLength(1)
+    // одна запись истории на маркер
+    press('KeyZ', 'z', { ctrlKey: true })
+    expect(markers().filter((m) => m.kind === 'manual')).toHaveLength(0)
+  })
+
+  it('Shift+→ / Shift+← jump between visible markers (hidden onset and below-threshold are skipped)', () => {
+    useUi.setState({ playhead: 0 })
+    press('ArrowRight', 'ArrowRight', { shiftKey: true })
+    expect(useUi.getState().playhead).toBeCloseTo(12)
+    press('ArrowRight', 'ArrowRight', { shiftKey: true })
+    expect(useUi.getState().playhead).toBeCloseTo(16) // onset (14) скрыт
+    useUi.getState().setMarkerVisibility({ minStrength: 0.5 })
+    useUi.setState({ playhead: 12 })
+    press('ArrowRight', 'ArrowRight', { shiftKey: true })
+    expect(useUi.getState().playhead).toBeCloseTo(18) // mrk_weak (16) скрыт порогом
+    press('ArrowLeft', 'ArrowLeft', { shiftKey: true })
+    expect(useUi.getState().playhead).toBeCloseTo(12)
+    press('ArrowLeft', 'ArrowLeft', { shiftKey: true })
+    expect(useUi.getState().playhead).toBeCloseTo(12) // левее маркеров нет
+    useUi.getState().setMarkerVisibility({ kinds: [...DEFAULT_VISIBILITY.kinds, 'onset'] })
+    useUi.setState({ playhead: 12 })
+    press('ArrowRight', 'ArrowRight', { shiftKey: true })
+    expect(useUi.getState().playhead).toBeCloseTo(14)
+  })
+
+  it('Delete removes selected markers (not clips); Ctrl+Z restores them; Escape clears the marker selection', () => {
+    useUi.setState({ selection: ['clp_music'], markerSelection: ['mrk_a', 'mrk_b'] })
+    press('Delete', 'Delete')
+    expect(markers().map((m) => m.id)).toEqual(['mrk_on', 'mrk_weak'])
+    expect(findClip(useProject.getState().project, 'clp_music')).toBeTruthy()
+    expect(useUi.getState().markerSelection).toEqual([])
+    press('KeyZ', 'z', { ctrlKey: true })
+    expect(markers()).toHaveLength(4)
+    // без выделенных маркеров Delete удаляет клип
+    press('Delete', 'Delete')
+    expect(findClip(useProject.getState().project, 'clp_music')).toBeUndefined()
+    useUi.setState({ markerSelection: ['mrk_x'] })
+    press('Escape', 'Escape')
+    expect(useUi.getState().markerSelection).toEqual([])
   })
 })

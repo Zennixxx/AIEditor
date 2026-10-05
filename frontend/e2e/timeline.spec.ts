@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 // Раскладка таймлайна (src/timeline/geometry.ts): линейка 28px, новый проект — V1 (64px), A1 (56px).
-const RULER_H = 28
+const RULER_H = 42
 const V1_CENTER_Y = RULER_H + 32
 
 test('import → drag asset to timeline → Ctrl+K splits → Ctrl+Z undoes', async ({ page }) => {

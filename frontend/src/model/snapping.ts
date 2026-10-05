@@ -1,8 +1,9 @@
 // Привязка (docs/FRONTEND.md 1.4): плейхед, края клипов, маркеры, секции, 0.
-import type { Project } from '@/shared/types.gen'
+import type { Marker, Project } from '@/shared/types.gen'
 import { snapToFrame } from '@/shared/time'
 import { itemEnd, timelineAtSource } from './clipTime'
 import { isClip } from './lookup'
+import { sectionSpanOnTimeline } from './sections'
 
 export type SnapKind = 'playhead' | 'edge' | 'marker' | 'section' | 'zero'
 
@@ -31,6 +32,10 @@ export interface CollectOptions {
   playhead: number
   /** Перетаскиваемые элементы — их края не являются целями. */
   exclude?: ReadonlySet<string>
+  /** Скрытые фильтром видимости маркеры не являются целями привязки. */
+  markerVisible?: (m: Marker) => boolean
+  /** Маркеры, которые сейчас перетаскивают, — не цели. */
+  excludeMarkers?: ReadonlySet<string>
 }
 
 /** Все цели привязки в timeline time. Маркеры клипов (source time) пересчитываются в timeline time. */
@@ -39,18 +44,26 @@ export function collectSnapTargets(p: Project, opts: CollectOptions): SnapTarget
     { t: opts.playhead, kind: 'playhead' },
     { t: 0, kind: 'zero' },
   ]
+  const usable = (m: Marker) =>
+    !opts.excludeMarkers?.has(m.id) && (opts.markerVisible ? opts.markerVisible(m) : true)
   for (const track of p.tracks) {
     for (const item of track.items) {
       if (opts.exclude?.has(item.id)) continue
       res.push({ t: item.start, kind: 'edge' }, { t: itemEnd(item), kind: 'edge' })
       if (!isClip(item)) continue
       for (const m of item.markers) {
+        if (!usable(m)) continue
         const t = timelineAtSource(item, m.t)
         if (t !== null) res.push({ t, kind: 'marker' })
       }
+      // секции музыки клипа (source time) — в timeline time, обрезанные по видимому диапазону (CONTRACT §6.1 п. 11)
+      for (const s of item.sections ?? []) {
+        const span = sectionSpanOnTimeline(item, s)
+        if (span) res.push({ t: span[0], kind: 'section' }, { t: span[1], kind: 'section' })
+      }
     }
   }
-  for (const m of p.markers) res.push({ t: m.t, kind: 'marker' })
+  for (const m of p.markers) if (usable(m)) res.push({ t: m.t, kind: 'marker' })
   for (const s of p.sections) res.push({ t: s.start, kind: 'section' }, { t: s.end, kind: 'section' })
   return res
 }

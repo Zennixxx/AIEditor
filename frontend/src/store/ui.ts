@@ -1,6 +1,7 @@
 // Состояние интерфейса (не часть проекта, не попадает в историю): выделение, плейхед, зум, инструменты.
 import { create } from 'zustand'
 import type { ClipboardEntry } from '@/model/edit'
+import { DEFAULT_VISIBILITY, type MarkerVisibility } from '@/model/markers'
 
 export type Tool = 'select' | 'blade'
 
@@ -27,10 +28,19 @@ interface UiState {
   /** Solo аудиодорожек — состояние сессии, в проект не пишется. */
   solo: string[]
   clipboard: ClipboardEntry[]
+  /** Выделенные маркеры (клипов и проекта) — отдельно от выделения элементов дорожек. */
+  markerSelection: string[]
+  /** Фильтр видимости маркеров: порог силы и виды. Скрытые не участвуют в привязке и макро-ops. */
+  markerVisibility: MarkerVisibility
+  /** Маркер, у которого инспектор должен сфокусировать поле label (двойной клик). */
+  focusMarkerId: string | null
   /** Ассет, который сейчас тащат из Media Bin (dataTransfer недоступен в dragover). */
   draggingAssetId: string | null
 
   select: (ids: string[]) => void
+  selectMarkers: (ids: string[]) => void
+  setMarkerVisibility: (patch: Partial<MarkerVisibility>) => void
+  focusMarker: (id: string | null) => void
   setPlayhead: (t: number) => void
   setScroll: (x: number, y?: number) => void
   setViewWidth: (w: number) => void
@@ -60,9 +70,15 @@ export const useUi = create<UiState>()((set, get) => ({
   tool: 'select',
   solo: [],
   clipboard: [],
+  markerSelection: [],
+  markerVisibility: DEFAULT_VISIBILITY,
+  focusMarkerId: null,
   draggingAssetId: null,
 
   select: (ids) => set({ selection: [...new Set(ids)] }),
+  selectMarkers: (ids) => set({ markerSelection: [...new Set(ids)] }),
+  setMarkerVisibility: (patch) => set((s) => ({ markerVisibility: { ...s.markerVisibility, ...patch } })),
+  focusMarker: (focusMarkerId) => set({ focusMarkerId }),
   setPlayhead: (t) => set({ playhead: Math.max(0, t) }),
   setScroll: (x, y) =>
     set({ scrollX: Math.max(0, x), ...(y !== undefined ? { scrollY: Math.max(0, y) } : {}) }),

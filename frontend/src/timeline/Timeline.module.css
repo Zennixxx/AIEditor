@@ -193,3 +193,41 @@
   min-width: 70px;
   text-align: right;
 }
+
+.markerFilter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.filterLabel {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+
+.filterCount {
+  min-width: 28px;
+  margin-left: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.threshold {
+  width: 64px;
+  height: 12px;
+  margin: 0 4px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+  vertical-align: baseline;
+}

@@ -6,6 +6,9 @@ import type {
   ImportResponse,
   Job,
   JobKind,
+  MusicAnalysis,
+  MusicAnalysisParams,
+  MusicAnalysisParamsInput,
   Project,
   ProjectListItem,
   Thumbs,
@@ -27,6 +30,34 @@ const assets = new Map<string, Asset>(fixtures.assets.map((a) => [a.id, clone(a)
 const projects = new Map<string, Project>([[fixtures.project.id, clone(fixtures.project)]])
 const jobs = new Map<string, Job>(fixtures.jobs.map((j) => [j.id, clone(j)]))
 const timers = new Map<string, ReturnType<typeof setInterval>>()
+/** Готовые анализы музыки по assetId (GET /analysis/music/{id}); демо-ассет фикстур считается проанализированным. */
+const musicAnalyses = new Map<string, MusicAnalysis>([
+  [fixtures.musicAnalysis.assetId, clone(fixtures.musicAnalysis)],
+])
+
+const DEFAULT_MUSIC_PARAMS: MusicAnalysisParams = {
+  bassCutoffHz: 150,
+  sensitivity: 0.5,
+  minGapSec: 0.12,
+  useStems: false,
+}
+
+/**
+ * «Анализ» в моке: результат фикстуры, а параметры влияют на басы — sensitivity выше → больше слабых басов,
+ * minGapSec отсекает близкие (жадно, по порядку). Остальные списки (beats, onsets, sections) — как в фикстуре.
+ */
+function mockMusicAnalysis(assetId: string, input: MusicAnalysisParamsInput): MusicAnalysis {
+  const params: MusicAnalysisParams = { ...DEFAULT_MUSIC_PARAMS, ...input }
+  const base = clone(fixtures.musicAnalysis)
+  const minStrength = Math.max(0, 0.5 - params.sensitivity)
+  let last = -Infinity
+  const bass = base.bass.filter((b) => {
+    if (b.strength < minStrength || b.t - last < params.minGapSec) return false
+    last = b.t
+    return true
+  })
+  return { ...base, assetId, params, bass }
+}
 
 function broadcast(event: WsEvent): void {
   events.broadcast(JSON.stringify(event))
@@ -326,17 +357,23 @@ export const handlers = [
   }),
 
   // --- анализ ---
-  http.get(url('/analysis/music/:id'), ({ params }) =>
-    params.id === fixtures.musicAnalysis.assetId
-      ? HttpResponse.json(fixtures.musicAnalysis)
-      : notFound('analysis_not_found', 'Анализ ещё не выполнен'),
-  ),
-  http.post(url('/analysis/music/:id'), ({ params }) => {
+  http.get(url('/analysis/music/:id'), ({ params }) => {
+    const found = musicAnalyses.get(String(params.id))
+    return found ? HttpResponse.json(found) : notFound('analysis_not_found', 'Анализ ещё не выполнен')
+  }),
+  http.post(url('/analysis/music/:id'), async ({ params, request }) => {
     const assetId = String(params.id)
+    if (!assets.has(assetId)) return notFound('asset_not_found', `Ассет ${assetId} не найден`)
+    const body = ((await request.json().catch(() => ({}))) ?? {}) as MusicAnalysisParamsInput
+    // прогресс по WS (kind musicAnalysis), по завершении результат кладётся и в job.result, и в GET /analysis/music/{id}
     const job = runJob('musicAnalysis', {
       assetId,
-      durationMs: 2000,
-      result: () => ({ ...clone(fixtures.musicAnalysis), assetId }),
+      durationMs: 1600,
+      result: () => {
+        const analysis = mockMusicAnalysis(assetId, body)
+        musicAnalyses.set(assetId, analysis)
+        return analysis
+      },
     })
     return HttpResponse.json({ jobId: job.id })
   }),

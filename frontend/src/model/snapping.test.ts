@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Clip } from '@/shared/types.gen'
 import { collectSnapTargets, findSnap, snapPoint, snapSpan, snapThreshold, type SnapTarget } from './snapping'
-import { sampleProject } from './testUtils'
+import { musicProject, sampleProject } from './testUtils'
 
 const opts = { enabled: true, threshold: 0.1, fps: 30 }
 
@@ -77,5 +77,38 @@ describe('snapping', () => {
     expect(has('section', 8) && has('section', 9)).toBe(true)
     // края исключённого клипа clp_a (0..2) — только через соседа clp_b (2) и ноль
     expect(targets.filter((x) => x.kind === 'edge').map((x) => x.t)).toEqual([2, 4, 1, 1.5])
+  })
+
+  it('includes clip sections (source → timeline time, clipped to the visible range)', () => {
+    const p = musicProject() // клип: start 10, source 20..50
+    const clip = p.tracks.find((t) => t.id === 'trk_a1')!.items[0] as Clip
+    clip.sections = [
+      { id: 'sec_1', start: 15, end: 30, label: 'intro', energy: 0.3 }, // 20..30 → 10..20
+      { id: 'sec_2', start: 60, end: 70, label: 'drop', energy: 1 }, // вне клипа
+    ]
+    const targets = collectSnapTargets(p, { playhead: 0 })
+    const sections = targets.filter((x) => x.kind === 'section').map((x) => x.t)
+    expect(sections).toEqual([10, 20])
+  })
+
+  it('hidden and dragged markers are not snap targets', () => {
+    const p = musicProject()
+    const clip = p.tracks.find((t) => t.id === 'trk_a1')!.items[0] as Clip
+    clip.markers = [
+      { id: 'mrk_loud', t: 25, kind: 'bass', strength: 0.9 },
+      { id: 'mrk_weak', t: 30, kind: 'bass', strength: 0.1 },
+      { id: 'mrk_on', t: 35, kind: 'onset', strength: 1 },
+    ]
+    p.markers = [{ id: 'mrk_p', t: 3, kind: 'manual', strength: 1 }]
+    const markerTimes = (o: Parameters<typeof collectSnapTargets>[1]) =>
+      collectSnapTargets(p, o)
+        .filter((x) => x.kind === 'marker')
+        .map((x) => x.t)
+    // marker «mrk_weak» (source 30) → timeline 20; «mrk_on» (35) → 25; «mrk_loud» (25) → 15
+    expect(markerTimes({ playhead: 0 })).toEqual([15, 20, 25, 3])
+    expect(
+      markerTimes({ playhead: 0, markerVisible: (m) => m.strength >= 0.5 && m.kind !== 'onset' }),
+    ).toEqual([15, 3])
+    expect(markerTimes({ playhead: 0, excludeMarkers: new Set(['mrk_loud', 'mrk_p']) })).toEqual([20, 25])
   })
 })
