@@ -1,0 +1,166 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  height: 210px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.title {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.group {
+  display: flex;
+  gap: 2px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.button {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--panel-3);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.select {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  outline: none;
+}
+
+.area:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.plot {
+  display: block;
+  background: var(--bg);
+  user-select: none;
+}
+
+.empty {
+  padding: 16px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.grid {
+  stroke: var(--border);
+}
+
+.gridOne {
+  stroke: var(--border-strong);
+  stroke-dasharray: 4 3;
+}
+
+.label {
+  font-size: 10px;
+  fill: var(--text-faint);
+}
+
+.info {
+  font-size: 10px;
+  fill: var(--text-faint);
+}
+
+.marker {
+  stroke: #ffd84d55;
+  stroke-dasharray: 2 3;
+}
+
+.playhead {
+  stroke: var(--playhead);
+}
+
+.curve {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.effective {
+  fill: none;
+  stroke: #3d8bff;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.key {
+  fill: var(--panel);
+  stroke: var(--text);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.key[data-hover] {
+  stroke: var(--accent);
+}
+
+.key[data-selected] {
+  fill: var(--accent);
+  stroke: #fff;
+}
+
+.handle {
+  fill: #fff;
+  stroke: var(--accent);
+  cursor: grab;
+}
+
+.handleLine {
+  stroke: var(--accent);
+  stroke-width: 1;
+}

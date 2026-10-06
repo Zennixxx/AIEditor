@@ -1,6 +1,6 @@
 // Проект в памяти + единственные точки изменения: dispatch(ops) и transact(recipe).
 // Каждая транзакция — одна запись истории (store/history.ts).
-import { enablePatches, produceWithPatches, type Draft } from 'immer'
+import { enablePatches, produce, produceWithPatches, type Draft } from 'immer'
 import { create } from 'zustand'
 import { checkInvariants } from '@/model/invariants'
 import { applyOpsToDraft, OpsError, type ApplyContext, type ApplyOutcome } from '@/model/ops/applyOps'
@@ -35,6 +35,7 @@ interface ProjectState {
   sealHistory: () => void
   /** Обновить копию метаданных ассета (WS-событие `asset`) — без записи в историю. */
   syncAsset: (asset: Asset) => void
+  setInterpolated: (changes: Readonly<Record<string, string | null>>) => void
 }
 
 let applyCtx: ApplyContext = {}
@@ -115,6 +116,22 @@ export const useProject = create<ProjectState>()((set, get) => ({
     const assets = [...project.assets]
     assets[i] = asset
     set({ project: { ...project, assets } })
+  },
+
+  setInterpolated: (changes) => {
+    const ids = Object.keys(changes)
+    if (ids.length === 0) return
+    const project = produce(get().project, (d) => {
+      for (const track of d.tracks) {
+        for (const item of track.items) {
+          if (item.type !== 'clip' || !(item.id in changes)) continue
+          const value = changes[item.id]
+          if (value) item.interpolatedAssetId = value
+          else delete item.interpolatedAssetId
+        }
+      }
+    })
+    if (project !== get().project) set({ project })
   },
 }))
 

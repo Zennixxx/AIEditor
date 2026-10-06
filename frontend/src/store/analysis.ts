@@ -1,11 +1,11 @@
 // Анализ музыки: запуск на бэке, ожидание задачи, перенос результата в проект одной транзакцией ops (CONTRACT §4).
 import { create } from 'zustand'
-import { analysisApi, jobsApi } from '@/api/analysis'
+import { analysisApi } from '@/api/analysis'
 import { ApiError } from '@/api/client'
 import { canHoldAnalysis, planApplyAnalysis } from '@/model/markers'
 import { findClip } from '@/model/lookup'
-import type { Job, MusicAnalysis, MusicAnalysisParamsInput } from '@/shared/types.gen'
-import { useAssets } from './assets'
+import type { MusicAnalysis, MusicAnalysisParamsInput } from '@/shared/types.gen'
+import { waitForJob } from './jobWait'
 import { useProject } from './project'
 
 export interface AnalyzeOptions {
@@ -23,46 +23,14 @@ interface AnalysisState {
   analyze: (clipId: string, opts?: AnalyzeOptions) => Promise<boolean>
 }
 
-/** Интервал опроса `GET /jobs/{id}` — страховка на случай потерянного WS-события. */
-export const JOB_POLL_MS = 750
-
 const isMusicAnalysis = (x: unknown): x is MusicAnalysis =>
   typeof x === 'object' && x !== null && 'bass' in x && 'sections' in x && 'beats' in x
 
 /** Ждёт завершения задачи `musicAnalysis`: по WS-событиям (стор задач) и опросом. Возвращает результат. */
-function awaitMusicJob(jobId: string): Promise<MusicAnalysis> {
-  return new Promise((resolve, reject) => {
-    const cleanups: (() => void)[] = []
-    let finished = false
-    const finish = (fn: () => void) => {
-      if (finished) return
-      finished = true
-      cleanups.forEach((c) => c())
-      fn()
-    }
-    const handle = (job: Job | undefined) => {
-      if (!job || job.id !== jobId) return
-      if (job.status === 'done') {
-        finish(() =>
-          isMusicAnalysis(job.result)
-            ? resolve(job.result)
-            : reject(new Error('Бэк не вернул результат анализа')),
-        )
-      } else if (job.status === 'failed' || job.status === 'canceled') {
-        finish(() => reject(new Error(job.error?.message ?? 'Анализ не выполнен')))
-      }
-    }
-    cleanups.push(
-      useAssets.subscribe((s, prev) => {
-        if (s.jobs[jobId] !== prev.jobs[jobId]) handle(s.jobs[jobId])
-      }),
-    )
-    const timer = setInterval(() => {
-      jobsApi.get(jobId).then(handle, () => undefined)
-    }, JOB_POLL_MS)
-    cleanups.push(() => clearInterval(timer))
-    handle(useAssets.getState().jobs[jobId])
-  })
+async function awaitMusicJob(jobId: string): Promise<MusicAnalysis> {
+  const job = await waitForJob(jobId)
+  if (!isMusicAnalysis(job.result)) throw new Error('Бэк не вернул результат анализа')
+  return job.result
 }
 
 function messageOf(e: unknown): string {

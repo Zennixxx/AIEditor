@@ -21,7 +21,7 @@ import {
   type ExportSettings,
   type TimeRange,
 } from './settings'
-import { ExportError, ExportFrames } from './sources'
+import { ExportError, ExportFrames, frameKey } from './sources'
 
 export type ExportPhase = 'prepare' | 'audio' | 'video' | 'finalize'
 
@@ -189,9 +189,9 @@ export async function exportVideo(job: ExportJob): Promise<ExportResult> {
     for (let i = 0; i < frames; i++) {
       signal?.throwIfAborted()
       if (encodeError) throw encodeError
-      const plan = buildFramePlan(project, frameTime(range, fps, i))
+      const plan = buildFramePlan(project, frameTime(range, fps, i), assets)
       const images = await sources.load(plan)
-      r.render(plan, (step) => images.get(step.clip.id) ?? null)
+      r.render(plan, (step, which) => images.get(frameKey(step.clip.id, which)) ?? null)
       sources.release()
       const frame = new VideoFrame(canvas, {
         timestamp: primeUs + Math.round((i * 1e6) / fps),

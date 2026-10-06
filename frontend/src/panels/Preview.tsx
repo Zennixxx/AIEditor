@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { containRect, coverSource } from '@/playback/frame'
-import { player } from '@/playback/player'
+import { assetLookup, player } from '@/playback/player'
 import { buildFramePlan, type LayerStep } from '@/render/framePlan'
 import type { FrameImage } from '@/render/frameSource'
 import { previewResolver } from '@/render/previewSource'
@@ -25,7 +25,13 @@ function drawFallback(ctx: CanvasRenderingContext2D, w: number, h: number, proje
   const plan = buildFramePlan(project, useUi.getState().playhead)
   const resolve = previewResolver(project)
   const top = [...plan.steps].reverse().find((s): s is LayerStep => s.kind === 'layer')
-  const stats: RenderStats = { source: 'none', clipId: top?.clip.id ?? null, layers: 0, effects: 0 }
+  const stats: RenderStats = {
+    source: 'none',
+    clipId: top?.clip.id ?? null,
+    layers: 0,
+    effects: 0,
+    blended: 0,
+  }
   const image: FrameImage | null = top ? resolve(top) : null
   if (!image) return stats
   const crop = image.crop ?? { x: 0, y: 0, w: image.width, h: image.height }
@@ -96,7 +102,7 @@ export function Preview() {
       const project = useProject.getState().project
       let res: RenderStats
       if (renderer) {
-        const plan = buildFramePlan(project, useUi.getState().playhead)
+        const plan = buildFramePlan(project, useUi.getState().playhead, assetLookup(project))
         res = renderer.render(plan, previewResolver(project))
       } else if (ctx2d) {
         res = drawFallback(ctx2d, canvas.width, canvas.height, project)
@@ -107,6 +113,8 @@ export function Preview() {
       if (canvas.dataset.clipId !== clip) canvas.dataset.clipId = clip
       const fx = String(res.effects)
       if (canvas.dataset.effects !== fx) canvas.dataset.effects = fx
+      const blended = String(res.blended)
+      if (canvas.dataset.blended !== blended) canvas.dataset.blended = blended
     }
     const redraw = () => {
       if (!raf) raf = requestAnimationFrame(draw)

@@ -196,6 +196,28 @@ describe('buildFramePlan', () => {
     expect(buildFramePlan(p, 10.5).steps.some((s) => s.kind === 'adjust')).toBe(false)
   })
 
+  it('blends neighbour frames of a slow frame-blend ramp when an asset lookup is given', () => {
+    const p = structuredClone(sampleProject())
+    const c = findTrack(p, 'trk_v1')!.items[0] as Clip
+    c.timeRemap = {
+      keyframes: [
+        { u: 0, speed: 0.25, ease: 'linear' },
+        { u: 1, speed: 0.25, ease: 'linear' },
+      ],
+      fit: 'free',
+      frameBlend: true,
+    }
+    c.sourceOut = 0.5
+    const lookup = (id: string) => p.assets.find((a) => a.id === id)
+    const step = buildFramePlan(p, 0.2, lookup).steps[0] as LayerStep
+    expect(step.src).toBeCloseTo(0.05, 9)
+    expect(step.blend?.next).toBeCloseTo(2 / 30, 9)
+    expect(step.blend?.weight).toBeCloseTo(0.5, 6)
+    expect((buildFramePlan(p, 0.2).steps[0] as LayerStep).blend).toBeNull()
+    c.timeRemap.frameBlend = false
+    expect((buildFramePlan(p, 0.2, lookup).steps[0] as LayerStep).blend).toBeNull()
+  })
+
   it('effectPass: disabled and out-of-range effects are skipped', () => {
     const fx = findTrack(sampleProject(), 'trk_fx')!.items[0] as EffectItem
     expect(effectPass(fx, 0.1)).not.toBeNull()

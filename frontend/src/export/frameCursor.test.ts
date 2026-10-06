@@ -84,6 +84,19 @@ describe('FrameCursor', () => {
     expect(live.size).toBe(0)
   })
 
+  it('peeks the following frame for blending without moving the cursor', async () => {
+    const { source, live } = fakeSource(30, 10)
+    const cursor = new FrameCursor(source)
+    expect(Math.round((await cursor.at(0.1 + 0.4 / 30))!.timestamp * 30)).toBe(3)
+    expect(Math.round((await cursor.following())!.timestamp * 30)).toBe(4)
+    expect(Math.round((await cursor.at(0.1 + 0.6 / 30))!.timestamp * 30)).toBe(3)
+    expect(cursor.restarts).toBe(1)
+    await cursor.at(1)
+    expect(await cursor.following()).toBeNull()
+    await cursor.dispose()
+    expect(live.size).toBe(0)
+  })
+
   it('serves reverse playback through restarts', async () => {
     const { source, live } = fakeSource(30, 90)
     const cursor = new FrameCursor(source)

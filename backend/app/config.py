@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     aieditor_port: int = 8765
     aieditor_debug: bool = False
     aieditor_shared_dir: Path = SHARED_DIR
+    aieditor_interpolate_max_height: int = 1080
     aieditor_cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "tauri://localhost"]
 
     ffmpeg_path: Path | None = None

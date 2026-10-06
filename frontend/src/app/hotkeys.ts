@@ -31,6 +31,7 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (mod && (code === 'KeyC' || key === 'c')) return run(actions.copySelection)
   if (mod && (code === 'KeyV' || key === 'v')) return run(actions.paste)
   if (e.altKey && !mod && code === 'KeyX') return run(actions.clearInOut)
+  if (e.shiftKey && !mod && !e.altKey && code === 'F3') return run(actions.toggleCurveEditor)
   if (mod || e.altKey) return false
 
   // транспорт (по e.code — в любой раскладке)

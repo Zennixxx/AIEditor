@@ -2,6 +2,7 @@
 // которые начнутся в ближайшие 2 с. Во время воспроизведения позиция видео подтягивается к
 // мастер-часам (drift.ts), на паузе — точный seek в кадр под плейхедом.
 import { assetsApi } from '@/api/assets'
+import { layerBlend, usableInterpolation } from '@/model/interpolation'
 import type { Clip, Project } from '@/shared/types.gen'
 import { canPlayNatively, correctDrift, onFrame } from './drift'
 import { entrySource, upcomingVideoClips, videoLayersAt, type AssetLookup, type Layer } from './timing'
@@ -29,8 +30,16 @@ export interface SyncOptions {
 export function proxyUrl(clip: Clip, assets: AssetLookup): string | null {
   const a = assets(clip.assetId)
   if (!a || a.kind !== 'video' || !a.derived.proxy) return null
-  return assetsApi.fileUrl(a.derived.proxy)
+  const interpolated = usableInterpolation(clip, assets)
+  return assetsApi.fileUrl(interpolated?.derived.proxy ?? a.derived.proxy)
 }
+
+export function seekFps(clip: Clip, assets: AssetLookup, projectFps: number): number {
+  const media = usableInterpolation(clip, assets)?.fps ?? assets(clip.assetId)?.fps ?? 0
+  return Math.max(projectFps, media)
+}
+
+const NEXT = '#next'
 
 export class VideoPool {
   private entries = new Map<string, Entry>()
@@ -48,6 +57,10 @@ export class VideoPool {
     return this.entries.get(clipId)?.el ?? null
   }
 
+  partner(clipId: string): HTMLVideoElement | null {
+    return this.entries.get(clipId + NEXT)?.el ?? null
+  }
+
   /** Приводит пул в соответствие с моментом `t`; возвращает активные видеослои (верхний первым). */
   sync(project: Project, t: number, o: SyncOptions): Layer[] {
     const layers = videoLayersAt(project, t)
@@ -60,6 +73,14 @@ export class VideoPool {
       keep.add(layer.clip.id)
       const e = this.ensure(layer.clip.id, url)
       this.drive(e.el, layer, o)
+      const blend = layerBlend(layer.clip, layer.src, layer.rate * o.transportRate, o.assets)
+      if (blend) {
+        keep.add(layer.clip.id + NEXT)
+        const p = this.ensure(layer.clip.id + NEXT, url)
+        if (!p.el.paused) p.el.pause()
+        const target = clampToMedia(p.el, blend.next)
+        if (!p.el.seeking && !onFrame(p.el.currentTime, target, blend.fps)) seek(p.el, target)
+      }
     }
 
     // предзагрузка: следующий клип уже стоит на своём первом кадре
@@ -114,7 +135,7 @@ export class VideoPool {
     }
     // пауза, reverse или скорость вне диапазона браузера — видео стоит, кадр выставляется seek-ом
     if (!el.paused) el.pause()
-    const needSeek = !onFrame(el.currentTime, target, o.fps)
+    const needSeek = !onFrame(el.currentTime, target, seekFps(layer.clip, o.assets, o.fps))
     if (needSeek && !el.seeking && (o.playing || o.precise)) seek(el, target)
   }
 

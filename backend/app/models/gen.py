@@ -261,6 +261,7 @@ class AssetParent(BaseModel):
     factor: int = Field(..., ge=2)
     source_in: float = Field(...)
     source_out: float = Field(...)
+    quality: Literal["rife", "fallback"] | None = None
 
 
 class Asset(BaseModel):

@@ -72,3 +72,10 @@ export function timelineAtSource(clip: ClipTiming & Pick<Clip, 'start'>, src: nu
   }
   return clip.start + (lo + hi) / 2
 }
+
+export function effectiveSpeedFn(clip: ClipTiming): (u: number) => number {
+  const r = clip.timeRemap
+  if (!r) return () => clip.speed
+  const { k } = solveRemap(r.keyframes, r.fit, clip.duration, clip.sourceIn, clip.sourceOut)
+  return (u) => k * speedAt(r.keyframes, u)
+}

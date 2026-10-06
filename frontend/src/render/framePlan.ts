@@ -5,8 +5,9 @@
 //      эффекты клипа по порядку → смешение в аккумулятор по blendMode/opacity;
 //   2. fx-дорожка: её активные эффекты применяются к аккумулятору (adjustment layer, CONTRACT §2 п. 7).
 import { effectIntensity } from '@/model/envelope'
+import { layerBlend, type FrameBlend } from '@/model/interpolation'
 import { evaluateAnimatable } from '@/model/keyframes'
-import { layerAt, clipAt } from '@/playback/timing'
+import { layerAt, clipAt, type AssetLookup } from '@/playback/timing'
 import { resolveParams } from '@/shared/effects-registry'
 import type { Clip, EffectItem, EffectParams, Project } from '@/shared/types.gen'
 import type { LayerTransform } from './layerMath'
@@ -35,6 +36,7 @@ export interface LayerStep {
   opacity: number
   blendMode: Clip['blendMode']
   effects: EffectPass[]
+  blend: FrameBlend | null
 }
 
 export interface AdjustStep {
@@ -64,7 +66,7 @@ export function effectPass(item: EffectItem, tau: number): EffectPass | null {
   return { item, params: resolveParams(item.effect, item.params), intensity, tau, seed: effectSeed(item.id) }
 }
 
-export function buildFramePlan(project: Project, T: number): FramePlan {
+export function buildFramePlan(project: Project, T: number, lookup?: AssetLookup): FramePlan {
   const steps: PlanStep[] = []
   for (const track of project.tracks) {
     if (track.hidden) continue
@@ -97,6 +99,7 @@ export function buildFramePlan(project: Project, T: number): FramePlan {
         opacity,
         blendMode: clip.blendMode,
         effects,
+        blend: layerBlend(clip, layer.src, layer.rate, lookup),
       })
     } else if (track.kind === 'fx') {
       const effects: EffectPass[] = []

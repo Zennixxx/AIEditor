@@ -402,3 +402,24 @@
 .keyGraphKey[data-on] {
   fill: var(--snap, #ffd84d);
 }
+
+.speedStrip {
+  width: 100%;
+  height: 28px;
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.speedStrip polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.speedStripMid {
+  stroke: var(--border-strong);
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}

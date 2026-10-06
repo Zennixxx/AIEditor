@@ -182,7 +182,7 @@ interface Asset {
     thumbs?: string;          // /api/assets/{id}/thumbs.json — см. ниже
     waveform?: string;        // /api/assets/{id}/waveform.json
   };
-  parent?: { assetId: string; kind: "interpolated"; factor: number; sourceIn: number; sourceOut: number }; // для производных
+  parent?: { assetId: string; kind: "interpolated"; factor: number; sourceIn: number; sourceOut: number; quality?: "rife" | "fallback" }; // для производных, §5.3
 }
 
 // thumbs.json
@@ -271,7 +271,13 @@ interface TimeRemap {
 
 ### 5.3 Интерполяция кадров
 
-Если минимальная эффективная скорость клипа `< 0.8` и у исходника `fps · minSpeed < project.fps`, фронт запрашивает `POST /api/assets/{id}/interpolate` с `factor = min(16, nextPow2(ceil(project.fps / (asset.fps · minSpeed))))` и диапазоном `[sourceIn − 0.1, sourceOut + 0.1]`. Бэк возвращает производный ассет с `fps = asset.fps · factor`, **покрывающий тот же source time** (временные метки не сдвигаются — `src(τ)` используется как есть, пересчёт не нужен). ID пишется в `clip.interpolatedAssetId`. Пока задача не готова — `frameBlend`.
+Если минимальная эффективная скорость клипа `< 0.8` и у исходника `fps · minSpeed < project.fps`, фронт запрашивает `POST /api/assets/{id}/interpolate` с `factor = min(16, nextPow2(ceil(project.fps / (asset.fps · minSpeed))))` и диапазоном `[sourceIn − 0.1, sourceOut + 0.1]` (обрезанным по `[0, asset.duration]`). Бэк возвращает производный ассет с `fps = asset.fps · factor`, **покрывающий тот же source time** (временные метки не сдвигаются — `src(τ)` используется как есть, пересчёт не нужен). ID пишется в `clip.interpolatedAssetId`. Пока задача не готова — `frameBlend`.
+
+- Диапазон квантуется к кадрам исходника: первый кадр — `floor(sourceIn · fps)`, последний — `ceil(sourceOut · fps)`; `parent.sourceIn/sourceOut` — PTS первого и последнего кадра производного ассета. Его кадр `i` имеет PTS `parent.sourceIn + i / (asset.fps · factor)`; MP4 начинается с этого PTS (edit list), `<video>.currentTime` и Mediabunny видят те же source time. `duration` производного ассета — конец покрытого диапазона в source time (`parent.sourceOut + 1 / (asset.fps · factor)`), `hasAudio: false`, есть `derived.proxy` (720p, те же PTS); оригинал — полное разрешение (не выше 1080p по высоте).
+- `parent.quality`: `"rife"` — RIFE (rife-ncnn-vulkan), `"fallback"` — ffmpeg `minterpolate` (нет RIFE/GPU или RIFE упал).
+- Кэш: повторный запрос с тем же или вложенным диапазоном и тем же `factor` сразу завершается готовым ассетом; одинаковый запрос, пока идёт задача, возвращает её `jobId`.
+- Производный ассет годен для клипа, пока `parent.assetId = clip.assetId` и `[parent.sourceIn, parent.sourceOut + 1 / asset.fps]` (последний кадр показывается до следующего кадра исходника) покрывает `[sourceIn, effectiveSourceOut]` клипа; иначе фронт снимает `interpolatedAssetId` и запрашивает заново. `GET /assets` отдаёт и производные ассеты (с `parent`) — Media Bin их не показывает.
+- Превью берёт `derived.proxy` производного ассета, экспорт — его оригинал (§8.3).
 
 ## 6. Edit-ops
 
@@ -403,7 +409,7 @@ interface EffectDef {
 | GET | `/assets/{id}` | — | `Asset` |
 | GET | `/assets/{id}/proxy.mp4`, `/mezzanine.mp4`, `/original`, `/audio.m4a` | Range | поток (`206`) |
 | GET | `/assets/{id}/thumbs.json`, `/thumbs/{n}.jpg`, `/waveform.json` | — | файл |
-| POST | `/assets/{id}/interpolate` | `{sourceIn, sourceOut, factor}` | `JobRef` → результат `Asset` |
+| POST | `/assets/{id}/interpolate` | `{sourceIn, sourceOut, factor}` (`factor` ∈ 2, 4, 8, 16) | `JobRef` → результат `Asset` (производный, §5.3) |
 | POST | `/assets/{id}/stems` | — | `JobRef` → результат `{drums, bass, other, vocals}` URL |
 | GET | `/assets/{id}/stems/{name}.wav` | — | WAV стема (`name`: drums, bass, other, vocals), Range |
 | POST | `/analysis/music/{id}` | `MusicAnalysisParams` (частично) | `JobRef` → результат `MusicAnalysis` |
@@ -507,10 +513,14 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 | `POST /analysis/…/{id}`, `/assets/{id}/stems` | 404 | `asset_not_found` | — |
 | | 422 | `no_audio` | у ассета нет звука (изображение, видео без аудио) |
 | `POST /assets/{id}/stems`, `POST /analysis/music/{id}` с `useStems: true` | 501 | `demucs_not_installed` | — |
+| `POST /assets/{id}/interpolate` | 404 | `asset_not_found` | — |
+| | 422 | `not_video` | ассет не видео |
+| | 422 | `bad_range` | `sourceIn ≥ sourceOut` после обрезки по `[0, duration]` |
+| | 503 | `ffmpeg_missing` | — |
 | `POST /presets` | 422 | `invalid_preset` | `errors: string[]` — неизвестный эффект или параметр, значение вне диапазона / не из `options` / не того типа |
 | любой | 422 | `validation_error` | ошибки валидации |
 
-Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`.
+Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`. Ошибка RIFE задачу не роняет — бэк переходит на `minterpolate` (`parent.quality: "fallback"`).
 
 ### 8.3 Экспорт
 

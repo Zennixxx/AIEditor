@@ -70,11 +70,11 @@ class ClipAnalysisService:
         )
 
     def wanted(self, asset: Asset) -> bool:
-        return asset.kind == "video" and self.get(asset.id) is None
+        return asset.kind == "video" and asset.parent is None and self.get(asset.id) is None
 
     def start(self, asset: Asset, depends_on: Sequence[str] = ()) -> str | None:
         """Поставить локальный анализ; None — не нужен (не видео, нет ffmpeg) или уже готов."""
-        if asset.kind != "video" or ffmpeg_bin(self.settings) is None:
+        if asset.kind != "video" or asset.parent is not None or ffmpeg_bin(self.settings) is None:
             return None
         running = self._inflight.get(asset.id)
         if running is not None and (job := self.jobs.get(running)) and job.status in ("queued", "running"):

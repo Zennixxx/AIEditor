@@ -29,7 +29,8 @@ tests/                     pytest; фикстуры аудио/видео ген
 Раскладка данных (`AIEDITOR_DATA_DIR`, по умолчанию `../data`):
 ```
 data/assets/{assetId}/meta.json, proxy.mp4, audio.m4a, mezzanine.mp4, thumbs.json, thumbs/0.jpg…, waveform.json,
-                     analysis/music.json, analysis/clip.json, stems/*.wav, derived/{derivedAssetId}/…
+                     analysis/music.json, analysis/clip.json, stems/*.wav
+data/assets/{derivedAssetId}/meta.json (с parent), interpolated.mp4, proxy.mp4 — производные ассеты RIFE
 data/uploads/        файлы, загруженные через /assets/upload
 data/projects/       {id}.json, {id}.history/
 data/cache/gemini/   {sha1(запроса)}.json, files.json (сопоставление файл → Gemini file URI + срок жизни)
@@ -136,18 +137,25 @@ data/presets.json
 
 ## Фаза 5 — Интерполяция (RIFE)
 
-- [ ] `video/interpolate.py`: для `[sourceIn, sourceOut]` и `factor`:
+- [x] `video/interpolate.py`: для `[sourceIn, sourceOut]` и `factor`:
   1. извлечь кадры диапазона из оригинала (или mezzanine) в PNG (`-vsync passthrough`, с точными PTS; масштаб — полное разрешение, опция ограничить 1080p);
   2. `rife-ncnn-vulkan -i in -o out -m rife-v4.6 -n <count·factor> -j 1:2:2` (для factor=2ⁿ можно и итеративно);
   3. собрать H.264 `-r fps·factor -crf 16 -g 10`, **с таймстемпами, начинающимися с `sourceIn`** (через `-output_ts_offset sourceIn`) — чтобы source time совпадал с родителем;
   4. зарегистрировать производный ассет (`parent`), сделать для него proxy (720p) — фронт берёт его в превью;
   5. удалить временные кадры.
-- [ ] Кэш по (assetId, sourceIn, sourceOut, factor) с округлением до кадра; перекрывающиеся запросы с бо́льшим диапазоном — новый ассет.
-- [ ] Прогресс: по числу готовых кадров в выходной папке.
-- [ ] Fallback без GPU/RIFE: `minterpolate=fps=…:mi_mode=mci:mc_mode=aobmc:vsbmc=1` (флаг в результате `quality: "fallback"`).
-- [ ] Отмена убивает процесс и чистит временные файлы.
+- [x] Кэш по (assetId, sourceIn, sourceOut, factor) с округлением до кадра; перекрывающиеся запросы с бо́льшим диапазоном — новый ассет.
+- [x] Прогресс: по числу готовых кадров в выходной папке.
+- [x] Fallback без GPU/RIFE: `minterpolate=fps=…:mi_mode=mci:mc_mode=aobmc:vsbmc=1` (флаг в результате `quality: "fallback"`).
+- [x] Отмена убивает процесс и чистит временные файлы.
 - [x] `app/timeremap.py` по CONTRACT §5.1 + тест на `shared/fixtures/time_remap_vectors.json` (сделано в фазе 0) (бэк — **генератор эталонных векторов**: скрипт `uv run gen-ramp-vectors`, оркестратор кладёт результат в `shared/fixtures`).
-- [ ] Тест: 1-секундный клип 30 fps, factor 4 → ассет 120 fps, длительность 1 с ± 1 кадр, первый PTS = sourceIn.
+- [x] Тест: 1-секундный клип 30 fps, factor 4 → ассет 120 fps, длительность 1 с ± 1 кадр, первый PTS = sourceIn.
+
+✅ Фаза 5 бэка закрыта 2026-10-06: pytest (124) / ruff / pyright зелёные. Детали:
+- `POST /assets/{id}/interpolate` → `InterpolationService` (`video/interpolate.py`), задача `interpolate` на ресурсе `rife` (≤ 1). Диапазон квантуется к кадрам исходника (`floor`/`ceil`), ID производного детерминирован: sha1(родитель|первый|последний кадр|factor). Ассет лежит рядом с обычными: `data/assets/{id}/meta.json` + `interpolated.mp4` (`/original`) + `proxy.mp4`, `parent.quality: "rife" | "fallback"` (контракт v1.7).
+- Кадры: `-ss` на полкадра раньше первого + `-frames:v`, PNG без пересэмплирования (`-fps_mode passthrough`), высота не больше 1080 (`AIEDITOR_INTERPOLATE_MAX_HEIGHT`, 0 — без предела). RIFE v4.6 с `-n count·factor`: выходной кадр `i` — момент `i / factor` входных кадров (проверено на сером градиенте); хвостовые `factor − 1` повторов последнего кадра удаляются, остаётся `(count − 1)·factor + 1`. Сборка — один проход ffmpeg с двумя выходами (полное разрешение CRF 16 и proxy 720p CRF 23, GOP 10, без B-кадров) и `-output_ts_offset` = PTS первого кадра: Chromium (`<video>.currentTime`) и Mediabunny видят те же source time (проверено).
+- RIFE нет / упал / кадров не столько — `minterpolate` по тем же PNG (`tpad` на 4 кадра, иначе он теряет конец). Прогресс — по числу PNG в выходной папке; отмена убивает процесс, `.work` удаляется в `finally`.
+- Кэш: готовый ассет с тем же factor и покрывающим диапазоном — задача сразу `done`; одинаковый запрос во время работы — тот же `jobId`. Производные ассеты не получают локальный анализ клипа.
+- Тесты `tests/test_interpolate.py`: квантование и ошибки диапазона, 1 с × 4 (121 кадр, PTS с `sourceIn`, шаг 1/120, кадры `i·4` совпадают с исходником по яркости, proxy с тем же стартом, Range), кэш вложенного диапазона, fallback без RIFE, отмена с очисткой, 404 / `not_video` / `bad_range` / 422.
 
 ## Фаза 6 — Экспорт-поддержка
 

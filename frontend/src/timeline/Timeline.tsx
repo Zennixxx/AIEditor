@@ -2,12 +2,20 @@ import { useEffect, useMemo, useRef, type DragEvent as ReactDragEvent } from 're
 import { allClips } from '@/model/lookup'
 import { getImage, getThumbs, getWaveform, onMediaLoaded, thumbTile } from '@/store/media'
 import { useAssets } from '@/store/assets'
+import { useInterpolation } from '@/store/interpolation'
+import { usableInterpolation } from '@/model/interpolation'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { TimelineController, type PointerInfo } from './controller'
 import { ASSET_DND_TYPE, EFFECT_DND_TYPE, PRESET_DND_TYPE } from './dnd'
 import { followPlayhead, layoutTracks } from './geometry'
-import { DEFAULT_PALETTE, drawTimeline, type MediaSource, type Palette } from './render'
+import {
+  DEFAULT_PALETTE,
+  drawTimeline,
+  type InterpolationView,
+  type MediaSource,
+  type Palette,
+} from './render'
 import styles from './Timeline.module.css'
 import { TrackHeaders } from './TrackHeaders'
 
@@ -92,6 +100,8 @@ export function Timeline() {
       const ui = useUi.getState()
       const assets = useAssets.getState().assets
       const p = useProject.getState().project
+      const lookup = (id: string) => assets[id] ?? p.assets.find((a) => a.id === id)
+      const jobs = useInterpolation.getState().byClip
       drawTimeline(ctx, {
         project: p,
         rows: controller.rows(),
@@ -108,6 +118,12 @@ export function Timeline() {
         palette,
         inPoint: ui.inPoint,
         outPoint: ui.outPoint,
+        interpolation: (clip): InterpolationView | null => {
+          const job = jobs[clip.id]
+          if (job) return { state: job.status, progress: job.progress }
+          const ready = usableInterpolation(clip, lookup)
+          return ready?.parent ? { state: 'ready', quality: ready.parent.quality ?? 'rife' } : null
+        },
       })
     }
     const redraw = () => {
@@ -134,6 +150,7 @@ export function Timeline() {
     const unsubs = [
       useProject.subscribe(redraw),
       useAssets.subscribe(redraw),
+      useInterpolation.subscribe(redraw),
       useUi.subscribe((s, prev) => {
         // автоскролл за плейхедом при воспроизведении (фаза 1b включает `playing`)
         if (s.playing && s.playhead !== prev.playhead) {

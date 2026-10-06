@@ -19,10 +19,11 @@ from app.errors import ApiException
 from app.ids import ASSET_ID_RE
 from app.jobs.manager import JobContext, JobManager
 from app.media.pipeline import DERIVED_FILES, MediaService
-from app.models.gen import Asset, ImportRequest, ImportResponse, JobRef
+from app.models.gen import Asset, ImportRequest, ImportResponse, InterpolateRequest, JobRef
 from app.storage import atomic
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
+from app.video.interpolate import InterpolationService
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -146,7 +147,11 @@ async def get_asset(asset_id: str, request: Request) -> Asset:
     return _asset(request, asset_id)
 
 
-# ---------- файлы ----------
+@router.post("/{asset_id}/interpolate", response_model=JobRef, response_model_exclude_none=True)
+async def interpolate(asset_id: str, body: InterpolateRequest, request: Request) -> JobRef:
+    service: InterpolationService = request.app.state.interpolation
+    job_id = service.request(_asset(request, asset_id), body.source_in, body.source_out, body.factor)
+    return JobRef(job_id=job_id)
 
 
 # ---------- стемы (Demucs) ----------

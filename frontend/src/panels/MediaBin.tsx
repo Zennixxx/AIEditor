@@ -24,8 +24,9 @@ function formatDuration(sec: number): string {
 }
 
 export function MediaBin() {
-  const order = useAssets((s) => s.order)
+  const allOrder = useAssets((s) => s.order)
   const assets = useAssets((s) => s.assets)
+  const order = allOrder.filter((id) => !assets[id]?.parent)
   const uploading = useAssets((s) => s.uploading)
   const error = useAssets((s) => s.error)
   const inputRef = useRef<HTMLInputElement>(null)

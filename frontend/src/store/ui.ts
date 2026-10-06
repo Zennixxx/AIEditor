@@ -55,6 +55,8 @@ interface UiState {
   inPoint: number | null
   outPoint: number | null
   exportDialogOpen: boolean
+  curveEditorClipId: string | null
+  curveKey: number | null
 
   select: (ids: string[]) => void
   selectMarkers: (ids: string[]) => void
@@ -81,6 +83,8 @@ interface UiState {
   setInPoint: (t: number | null) => void
   setOutPoint: (t: number | null) => void
   setExportDialogOpen: (open: boolean) => void
+  openCurveEditor: (clipId: string | null) => void
+  selectCurveKey: (index: number | null) => void
 }
 
 export function clampZoom(pxPerSec: number): number {
@@ -114,6 +118,8 @@ export const useUi = create<UiState>()((set, get) => ({
   inPoint: null,
   outPoint: null,
   exportDialogOpen: false,
+  curveEditorClipId: null,
+  curveKey: null,
 
   select: (ids) => set({ selection: [...new Set(ids)] }),
   selectMarkers: (ids) => set({ markerSelection: [...new Set(ids)] }),
@@ -161,4 +167,10 @@ export const useUi = create<UiState>()((set, get) => ({
     })
   },
   setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
+  openCurveEditor: (curveEditorClipId) =>
+    set((s) => ({
+      curveEditorClipId,
+      curveKey: s.curveEditorClipId === curveEditorClipId ? s.curveKey : null,
+    })),
+  selectCurveKey: (curveKey) => set({ curveKey }),
 }))

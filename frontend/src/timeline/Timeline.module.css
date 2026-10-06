@@ -1,3 +1,15 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.stackMain {
+  flex: 1;
+  min-height: 0;
+}
+
 .timeline {
   display: flex;
   height: 100%;

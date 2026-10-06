@@ -1,4 +1,5 @@
 import * as actions from '@/app/actions'
+import { CurveEditor } from '@/panels/CurveEditor'
 import { Panel } from '@/panels/Panel'
 import { formatTimecode } from '@/shared/time'
 import { canRedo, canUndo, useProject } from '@/store/project'
@@ -120,7 +121,12 @@ function Toolbar() {
 export function TimelinePanel() {
   return (
     <Panel title="Таймлайн" actions={<Toolbar />}>
-      <Timeline />
+      <div className={styles.stack}>
+        <CurveEditor />
+        <div className={styles.stackMain}>
+          <Timeline />
+        </div>
+      </div>
     </Panel>
   )
 }

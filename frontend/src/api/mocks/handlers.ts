@@ -365,7 +365,7 @@ export const handlers = [
           id: 'ast_' + newId('x', 16).slice(2),
           name: `${parent.name} ×${body.factor}`,
           fps: (parent.fps ?? 30) * body.factor,
-          parent: { assetId: parentId, kind: 'interpolated', ...body },
+          parent: { assetId: parentId, kind: 'interpolated', ...body, quality: 'rife' },
         }
         assets.set(derived.id, derived)
         return derived

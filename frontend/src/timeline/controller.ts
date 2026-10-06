@@ -26,13 +26,14 @@ import {
   layoutTracks,
   maxScrollY,
   rowAtY,
+  rowScreenTop,
   xToTime,
   type TrackRow,
   type View,
 } from './geometry'
 import { hitKey, layoutKeys, type KeyView } from './keyLayout'
 import { hitMarker, layoutMarkers, markersInRect, type MarkerView } from './markerLayout'
-import { emptyOverlay, type Overlay } from './render'
+import { emptyOverlay, SPEED_STRIP_H, type Overlay } from './render'
 
 export interface PointerInfo {
   x: number
@@ -392,9 +393,17 @@ export class TimelineController {
       return true
     }
     const m = hitMarker(this.markers(), p.x, p.y)
-    if (!m) return false
-    useUi.getState().selectMarkers([m.id])
-    useUi.getState().focusMarker(m.id)
+    if (m) {
+      useUi.getState().selectMarkers([m.id])
+      useUi.getState().focusMarker(m.id)
+      return true
+    }
+    const hit = hitTest(this.rows(), this.view(), p.x, p.y)
+    if (hit.area !== 'item' || hit.row.track.kind !== 'video' || !isClip(hit.item)) return false
+    const bottom = rowScreenTop(hit.row, this.view()) + hit.row.itemHeight - 2
+    if (p.y < bottom - SPEED_STRIP_H - 6) return false
+    useUi.getState().select([hit.item.id])
+    useUi.getState().openCurveEditor(hit.item.id)
     return true
   }
 

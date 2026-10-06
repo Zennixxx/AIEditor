@@ -41,12 +41,13 @@ describe('planMix', () => {
 })
 
 describe('videoCandidates', () => {
+  const vclip = clip('clp_v', 0, 2, { assetId: videoAsset.id })
   const proxy = '/api/assets/ast_video0000000001/proxy.mp4'
   const mezz = '/api/assets/ast_video0000000001/mezzanine.mp4'
 
   it('prefers the original for browser-decodable assets', () => {
     const a: Asset = { ...videoAsset, derived: { proxy } }
-    expect(videoCandidates({}, a, () => undefined)).toEqual([
+    expect(videoCandidates(vclip, a, () => undefined)).toEqual([
       '/api/assets/ast_video0000000001/original',
       proxy,
     ])
@@ -54,23 +55,28 @@ describe('videoCandidates', () => {
 
   it('prefers the mezzanine when the original is not decodable', () => {
     const a: Asset = { ...videoAsset, browserDecodable: false, derived: { proxy, mezzanine: mezz } }
-    expect(videoCandidates({}, a, () => undefined)).toEqual([
+    expect(videoCandidates(vclip, a, () => undefined)).toEqual([
       mezz,
       '/api/assets/ast_video0000000001/original',
       proxy,
     ])
   })
 
-  it('puts a ready interpolated asset first', () => {
+  it('puts a ready interpolated asset covering the clip first', () => {
     const a: Asset = { ...videoAsset, derived: { proxy } }
-    const interp: Asset = { ...videoAsset, id: 'ast_interp00000001', status: 'ready' }
-    const urls = videoCandidates({ interpolatedAssetId: interp.id }, a, (id) =>
-      id === interp.id ? interp : undefined,
-    )
+    const interp: Asset = {
+      ...videoAsset,
+      id: 'ast_interp00000001',
+      fps: 120,
+      status: 'ready',
+      parent: { assetId: videoAsset.id, kind: 'interpolated', factor: 4, sourceIn: 0, sourceOut: 2 },
+    }
+    const withInterp = { ...vclip, interpolatedAssetId: interp.id }
+    const urls = videoCandidates(withInterp, a, (id) => (id === interp.id ? interp : undefined))
     expect(urls[0]).toBe('/api/assets/ast_interp00000001/original')
     const pending = { ...interp, status: 'importing' as const }
-    expect(videoCandidates({ interpolatedAssetId: interp.id }, a, () => pending)[0]).toBe(
-      '/api/assets/ast_video0000000001/original',
-    )
+    expect(videoCandidates(withInterp, a, () => pending)[0]).toBe('/api/assets/ast_video0000000001/original')
+    const longer = { ...withInterp, sourceOut: 3, duration: 3 }
+    expect(videoCandidates(longer, a, () => interp)[0]).toBe('/api/assets/ast_video0000000001/original')
   })
 })

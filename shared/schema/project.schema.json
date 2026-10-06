@@ -247,7 +247,8 @@
         "kind": { "const": "interpolated" },
         "factor": { "type": "integer", "minimum": 2 },
         "sourceIn": { "type": "number" },
-        "sourceOut": { "type": "number" }
+        "sourceOut": { "type": "number" },
+        "quality": { "enum": ["rife", "fallback"] }
       }
     },
     "Asset": {

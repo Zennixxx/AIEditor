@@ -19,4 +19,4 @@ export interface FrameImage {
 }
 
 /** Кадр для слоя плана или null (ещё не загружен — слой пропускается). */
-export type FrameResolver = (step: LayerStep) => FrameImage | null
+export type FrameResolver = (step: LayerStep, frame?: 'next') => FrameImage | null

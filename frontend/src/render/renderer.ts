@@ -38,6 +38,13 @@ void main() {
   o_color = vec4(clamp(rgb, 0.0, 1.0), 1.0);
 }`
 
+const MIX_FS = `${FRAGMENT_HEADER}
+uniform sampler2D u_layer;
+uniform float u_weight;
+void main() {
+  o_color = mix(texture(u_tex, v_uv), texture(u_layer, v_uv), u_weight);
+}`
+
 const BLIT_FS = `${FRAGMENT_HEADER}
 void main() {
   // цели хранят кадр сверху вниз, экран — снизу вверх
@@ -67,6 +74,7 @@ export interface RenderStats {
   clipId: string | null
   layers: number
   effects: number
+  blended: number
 }
 
 export class Renderer {
@@ -75,6 +83,7 @@ export class Renderer {
   private readonly layerProgram: Program
   private readonly compositeProgram: Program
   private readonly blitProgram: Program
+  private readonly mixProgram: Program
   /** Программы проходов эффекта; null — у эффекта нет шейдера или он не скомпилировался. */
   private readonly effectPrograms = new Map<string, { stage: EffectStage; program: Program }[] | null>()
   private readonly sources = new Map<unknown, SourceTexture>()
@@ -100,6 +109,7 @@ export class Renderer {
     this.layerProgram = new Program(gl, LAYER_FS, 'layer')
     this.compositeProgram = new Program(gl, COMPOSITE_FS, 'composite')
     this.blitProgram = new Program(gl, BLIT_FS, 'blit')
+    this.mixProgram = new Program(gl, MIX_FS, 'mix')
     this.vao = gl.createVertexArray()
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
     gl.disable(gl.BLEND)
@@ -134,7 +144,7 @@ export class Renderer {
   /** Рендер кадра плана в буфер canvas текущего размера. */
   render(plan: FramePlan, resolve: FrameResolver): RenderStats {
     const gl = this.gl
-    const stats: RenderStats = { source: 'none', clipId: null, layers: 0, effects: 0 }
+    const stats: RenderStats = { source: 'none', clipId: null, layers: 0, effects: 0, blended: 0 }
     if (gl.isContextLost()) return stats
     this.tick++
     const W = this.canvas.width
@@ -155,6 +165,24 @@ export class Renderer {
         const image = resolve(step)
         if (!image) continue
         let layer = this.drawLayer(step, image, W, H)
+        const next = step.blend ? resolve(step, 'next') : null
+        if (step.blend && next) {
+          const other = this.drawLayer(step, next, W, H)
+          const mixed = this.pool.acquire()
+          this.mixProgram.use()
+          this.bindTexture(0, layer.tex)
+          this.bindTexture(1, other.tex)
+          this.mixProgram
+            .setInt('u_tex', 0)
+            .setInt('u_layer', 1)
+            .set('u_res', [W, H])
+            .set('u_weight', step.blend.weight)
+          this.draw(mixed)
+          this.pool.release(layer)
+          this.pool.release(other)
+          layer = mixed
+          stats.blended++
+        }
         for (const pass of step.effects) {
           const out = this.applyEffect(pass, layer, plan, px)
           if (out) {
@@ -304,6 +332,7 @@ export class Renderer {
     this.layerProgram.dispose()
     this.compositeProgram.dispose()
     this.blitProgram.dispose()
+    this.mixProgram.dispose()
     gl.deleteVertexArray(this.vao)
   }
 }

@@ -11,6 +11,7 @@ import type { AssetLookup } from '@/playback/timing'
 import type { FramePlan, LayerStep } from '@/render/framePlan'
 import type { FrameImage } from '@/render/frameSource'
 import type { Asset, Clip } from '@/shared/types.gen'
+import { usableInterpolation } from '@/model/interpolation'
 import { FrameCursor } from './frameCursor'
 import { originalUrl, videoCandidates } from './sourceUrls'
 
@@ -48,6 +49,10 @@ function squarePixels(sample: VideoSample): boolean {
   return sample.pixelAspectRatio.num === sample.pixelAspectRatio.den
 }
 
+export function frameKey(clipId: string, which?: 'next'): string {
+  return which ? `${clipId}#${which}` : clipId
+}
+
 export class ExportFrames {
   private readonly videos = new Map<string, Promise<OpenedVideo>>()
   private readonly cursors = new Map<string, FrameCursor<VideoSample>>()
@@ -63,8 +68,9 @@ export class ExportFrames {
     const steps = plan.steps.filter((s): s is LayerStep => s.kind === 'layer')
     await Promise.all(
       steps.map(async (step) => {
-        const image = await this.frame(step)
-        if (image) out.set(step.clip.id, image)
+        const images = await this.frame(step)
+        if (images.main) out.set(frameKey(step.clip.id), images.main)
+        if (images.next) out.set(frameKey(step.clip.id, 'next'), images.next)
       }),
     )
     return out
@@ -104,9 +110,9 @@ export class ExportFrames {
     return asset
   }
 
-  private async frame(step: LayerStep): Promise<FrameImage | null> {
+  private async frame(step: LayerStep): Promise<{ main: FrameImage | null; next: FrameImage | null }> {
     const asset = this.asset(step.clip.assetId)
-    if (asset.kind === 'image') return this.image(asset)
+    if (asset.kind === 'image') return { main: await this.image(asset), next: null }
     const video = await this.video(step.clip, asset)
     let cursor = this.cursors.get(step.clip.id)
     if (!cursor) {
@@ -114,7 +120,14 @@ export class ExportFrames {
       this.cursors.set(step.clip.id, cursor)
     }
     const sample = await cursor.at(step.src)
-    if (!sample) return null
+    if (!sample) return { main: null, next: null }
+    const main = this.sampleImage(sample, frameKey(step.clip.id))
+    const following = step.blend ? await cursor.following() : null
+    const next = following ? this.sampleImage(following, frameKey(step.clip.id, 'next')) : null
+    return { main, next }
+  }
+
+  private sampleImage(sample: VideoSample, key: string): FrameImage {
     if (sample.rotation === 0 && !sample.flip && squarePixels(sample)) {
       const frame = sample.toVideoFrame()
       this.frames.push(frame)
@@ -124,25 +137,25 @@ export class ExportFrames {
         width: frame.displayWidth,
         height: frame.displayHeight,
         dynamic: true,
-        key: step.clip.id,
+        key,
       }
     }
     const w = sample.displayWidth
     const h = sample.displayHeight
-    let canvas = this.canvases.get(step.clip.id)
+    let canvas = this.canvases.get(key)
     if (!canvas || canvas.width !== w || canvas.height !== h) {
       canvas = new OffscreenCanvas(w, h)
-      this.canvases.set(step.clip.id, canvas)
+      this.canvases.set(key, canvas)
     }
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new ExportError('Canvas 2D недоступен')
     ctx.clearRect(0, 0, w, h)
     sample.draw(ctx, 0, 0, w, h)
-    return { kind: 'video', source: canvas, width: w, height: h, dynamic: true, key: step.clip.id }
+    return { kind: 'video', source: canvas, width: w, height: h, dynamic: true, key }
   }
 
   private video(clip: Clip, asset: Asset): Promise<OpenedVideo> {
-    const key = `${clip.interpolatedAssetId ?? ''}|${asset.id}`
+    const key = `${usableInterpolation(clip, this.lookup)?.id ?? ''}|${asset.id}`
     let pending = this.videos.get(key)
     if (!pending) {
       pending = (async () => {

@@ -1,5 +1,5 @@
 // Эндпоинты ассетов (CONTRACT §8). Компоненты обращаются к API только через store/.
-import type { Asset, ImportResponse, Thumbs, Waveform } from '@/shared/types.gen'
+import type { Asset, ImportResponse, InterpolateRequest, JobRef, Thumbs, Waveform } from '@/shared/types.gen'
 import { api, apiUrl } from './client'
 
 export const assetsApi = {
@@ -12,6 +12,8 @@ export const assetsApi = {
   },
   /** Tauri (фаза 8): импорт по абсолютным путям. */
   importPaths: (paths: readonly string[]) => api.post<ImportResponse>('/assets/import', { paths }),
+  interpolate: (assetId: string, body: InterpolateRequest) =>
+    api.post<JobRef>(`/assets/${assetId}/interpolate`, body),
   thumbs: (url: string) => api.get<Thumbs>(url),
   waveform: (url: string) => api.get<Waveform>(url),
   /** Абсолютный URL производного файла (для <img>/<video>). */

@@ -6,6 +6,7 @@ import { MediaBin } from '@/panels/MediaBin'
 import { Preview } from '@/panels/Preview'
 import { player } from '@/playback/player'
 import { startBackendMonitor } from '@/store/backend'
+import { startInterpolationSync } from '@/store/interpolation'
 import { startDataSync } from '@/store/sync'
 import { CutDialog } from '@/timeline/CutDialog'
 import { FxDialog } from '@/timeline/FxDialog'
@@ -18,6 +19,7 @@ import { TopBar } from './TopBar'
 export function App() {
   useEffect(() => startBackendMonitor(), [])
   useEffect(() => startDataSync(), [])
+  useEffect(() => startInterpolationSync(), [])
   useEffect(() => installHotkeys(), [])
   useEffect(() => player.start(), [])
 

@@ -1,5 +1,5 @@
 // Отрисовка таймлайна в Canvas 2D. Чистая функция от состояния: draw(ctx, scene).
-import { EPS, itemEnd, sourceAtTimeline } from '@/model/clipTime'
+import { EPS, effectiveSpeedFn, itemEnd, sourceAtTimeline } from '@/model/clipTime'
 import { clipKeyTimes } from '@/model/clipKeys'
 import { clipAnimatable, evaluateAnimatable, isAnimated, LANE_FIELDS, type LaneProp } from '@/model/keyframes'
 import { isClip } from '@/model/lookup'
@@ -21,6 +21,7 @@ import {
 import type { KeyView } from './keyLayout'
 import type { MarkerView } from './markerLayout'
 import { rulerTicks } from './ruler'
+import { speedColor } from './speedColor'
 
 export interface Palette {
   bg: string
@@ -105,7 +106,16 @@ export interface Scene {
   palette: Palette
   inPoint?: number | null
   outPoint?: number | null
+  interpolation?: (clip: Clip) => InterpolationView | null
 }
+
+export interface InterpolationView {
+  state: 'running' | 'failed' | 'ready'
+  progress?: number
+  quality?: 'rife' | 'fallback'
+}
+
+export const SPEED_STRIP_H = 4
 
 const FONT = '11px "Inter Variable", Inter, system-ui, sans-serif'
 
@@ -447,12 +457,28 @@ function drawItem(
     ctx.fillStyle = c.text
     ctx.fillText(label, vx0 + 5, y + 8)
   }
-  if (isClip(item) && (item.timeRemap || Math.abs(item.speed - 1) > EPS || item.reverse) && w > 60) {
-    const tag = item.timeRemap ? 'ramp' : `${item.reverse ? '◀ ' : ''}${round2(item.speed)}×`
+  const varied = isClip(item) && (!!item.timeRemap || Math.abs(item.speed - 1) > EPS)
+  if (isClip(item) && varied && !st.ghost)
+    drawSpeedStrip(ctx, s, item, start, vx0, vx1, y + h - SPEED_STRIP_H)
+  if (isClip(item) && (varied || item.reverse) && w > 60) {
+    const interp = st.ghost ? null : (s.interpolation?.(item) ?? null)
+    const status = !interp
+      ? ''
+      : interp.state === 'running'
+        ? ` · ⟳ ${Math.round((interp.progress ?? 0) * 100)}%`
+        : interp.state === 'failed'
+          ? ' · !'
+          : interp.quality === 'fallback'
+            ? ' · ME'
+            : ' · RIFE'
+    const tag =
+      (item.timeRemap
+        ? `${item.reverse ? '◀ ' : ''}ramp`
+        : `${item.reverse ? '◀ ' : ''}${round2(item.speed)}×`) + status
     ctx.fillStyle = 'rgba(0,0,0,0.45)'
     const tw = ctx.measureText(tag).width + 10
     ctx.fillRect(vx1 - tw, y, tw, 16)
-    ctx.fillStyle = c.snap
+    ctx.fillStyle = interp?.state === 'failed' ? c.playhead : c.snap
     ctx.fillText(tag, vx1 - tw + 5, y + 8)
   }
   // ключевые кадры transform/opacity — ромбики у нижнего края клипа
@@ -475,6 +501,27 @@ function drawItem(
   ctx.roundRect(x0 + 0.5, y + 0.5, x1 - x0 - 1, h - 1, 3)
   ctx.stroke()
   ctx.restore()
+}
+
+function drawSpeedStrip(
+  ctx: CanvasRenderingContext2D,
+  s: Scene,
+  clip: Clip,
+  start: number,
+  vx0: number,
+  vx1: number,
+  y: number,
+): void {
+  const fn = effectiveSpeedFn(clip)
+  const x0 = timeToX(start, s.view)
+  const width = clip.duration * s.view.pxPerSec
+  if (width <= 0) return
+  const step = 3
+  for (let x = Math.floor(vx0); x < vx1; x += step) {
+    const u = Math.min(Math.max((x + step / 2 - x0) / width, 0), 1)
+    ctx.fillStyle = speedColor(fn(u))
+    ctx.fillRect(x, y, Math.min(step, vx1 - x), SPEED_STRIP_H)
+  }
 }
 
 function round2(n: number): string {

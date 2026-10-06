@@ -197,6 +197,7 @@ export interface AssetParent {
   factor: number
   sourceIn: number
   sourceOut: number
+  quality?: 'rife' | 'fallback'
 }
 export interface Asset {
   id: string

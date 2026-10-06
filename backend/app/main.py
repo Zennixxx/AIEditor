@@ -22,6 +22,7 @@ from app.storage.paths import DataPaths
 from app.storage.presets_repo import PresetsRepo
 from app.storage.projects_repo import ProjectsRepo
 from app.video.analysis import ClipAnalysisService
+from app.video.interpolate import InterpolationService
 
 log = logging.getLogger("app")
 
@@ -59,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.presets = PresetsRepo(paths)
         app.state.analysis = MusicAnalysisService(settings, paths, app.state.assets, app.state.jobs)
         app.state.clip_analysis = ClipAnalysisService(settings, paths, app.state.assets, app.state.jobs)
+        app.state.interpolation = InterpolationService(settings, paths, app.state.assets, app.state.jobs, hub)
         app.state.media = MediaService(
             settings, paths, app.state.assets, app.state.jobs, hub, app.state.clip_analysis
         )

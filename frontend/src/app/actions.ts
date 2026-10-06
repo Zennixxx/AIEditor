@@ -5,7 +5,11 @@ import { planRippleTrack } from '@/model/ripple'
 import { neighborMarkerTime, planAddMarker, planDeleteMarkers, timelineMarkers } from '@/model/markers'
 import { trackInput } from '@/model/project'
 import { newTrackIndex } from '@/model/tracks'
-import type { Animatable, Ease, EffectPatch, TrackKind } from '@/shared/types.gen'
+import type { Animatable, Ease, EditOp, EffectPatch, TimeRemap, TrackKind } from '@/shared/types.gen'
+import { EPS } from '@/model/clipTime'
+import { constantRamp } from '@/model/rampKeys'
+import { planVelocity } from '@/model/velocity'
+import { findRampPreset } from '@/shared/rampPresets'
 import type { ApplyFxOp } from '@/model/applyEffectToMarkers'
 import type { CutOp } from '@/model/cutToMarkers'
 import { planEffectDrop, type EffectDropTarget } from '@/model/effects'
@@ -30,7 +34,7 @@ import {
 import { player } from '@/playback/player'
 import { findPreset } from '@/store/presets'
 import { OpsError } from '@/model/ops/errors'
-import { useProject } from '@/store/project'
+import { useProject, type DispatchResult } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { fitZoom, followPlayhead, timeToX } from '@/timeline/geometry'
 
@@ -397,4 +401,83 @@ export function clearInOut(): void {
 export function openExportDialog(): void {
   player.pause()
   ui().setExportDialogOpen(true)
+}
+
+// --- скорость и speed ramp ---
+
+function dispatchClip(ops: EditOp[], label: string, mergeKey?: string): DispatchResult {
+  return useProject.getState().dispatch(ops, { label, ...(mergeKey ? { mergeKey } : {}) })
+}
+
+function nextItemStart(clipId: string): number {
+  const ref = findClip(project(), clipId)
+  if (!ref) return Infinity
+  const next = ref.track.items.find((i) => i.start > ref.clip.start + EPS && i.id !== clipId)
+  return next ? next.start : Infinity
+}
+
+export function setClipSpeed(clipId: string, speed: number, mergeKey?: string): DispatchResult | null {
+  const clip = findClip(project(), clipId)?.clip
+  if (!clip || !(speed > 0)) return null
+  const range = clip.sourceOut - clip.sourceIn
+  const room = nextItemStart(clipId) - clip.start
+  const duration = Math.min(range / speed, room)
+  return dispatchClip(
+    [{ op: 'updateClip', clipId, patch: { speed, duration, sourceOut: clip.sourceIn + duration * speed } }],
+    'Скорость клипа',
+    mergeKey ? `speed:${clipId}:${mergeKey}` : undefined,
+  )
+}
+
+export function setClipReverse(clipId: string, reverse: boolean): DispatchResult {
+  return dispatchClip([{ op: 'updateClip', clipId, patch: { reverse } }], 'Обратное воспроизведение')
+}
+
+export function setTimeRemap(clipId: string, timeRemap: TimeRemap | null, mergeKey?: string): DispatchResult {
+  return dispatchClip(
+    [{ op: 'setTimeRemap', clipId, timeRemap }],
+    timeRemap ? 'Кривая скорости' : 'Постоянная скорость',
+    mergeKey ? `ramp:${clipId}:${mergeKey}` : undefined,
+  )
+}
+
+export function enableSpeedCurve(clipId: string): DispatchResult | null {
+  const clip = findClip(project(), clipId)?.clip
+  if (!clip || clip.timeRemap) return null
+  return setTimeRemap(clipId, constantRamp(clip.speed))
+}
+
+export function applyRampPreset(clipId: string, presetId: string): DispatchResult | null {
+  const preset = findRampPreset(presetId)
+  const clip = findClip(project(), clipId)?.clip
+  if (!preset || !clip) return null
+  return setTimeRemap(clipId, {
+    ...structuredClone(preset.timeRemap),
+    frameBlend: clip.timeRemap?.frameBlend ?? true,
+  })
+}
+
+export function velocityBetweenMarkers(
+  clipId: string,
+  presetId: string,
+): { result: DispatchResult; matched: number } | null {
+  const preset = findRampPreset(presetId)
+  const p = project()
+  const clip = findClip(p, clipId)?.clip
+  if (!preset || !clip) return null
+  const times = timelineMarkers(p, ui().markerVisibility)
+    .filter((m) => m.clipId !== clipId)
+    .map((m) => m.t)
+  const { ops, matched } = planVelocity(clip, preset.timeRemap, times, p.fps)
+  return { result: dispatchClip(ops, 'Velocity между маркерами'), matched }
+}
+
+export function toggleCurveEditor(): void {
+  if (ui().curveEditorClipId) {
+    ui().openCurveEditor(null)
+    return
+  }
+  const p = project()
+  const id = liveSelection().find((s) => findClip(p, s)?.track.kind === 'video')
+  if (id) ui().openCurveEditor(id)
 }

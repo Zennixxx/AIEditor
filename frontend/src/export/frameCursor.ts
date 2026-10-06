@@ -38,6 +38,15 @@ export class FrameCursor<S extends TimedSample> {
     return this.cur
   }
 
+  async following(): Promise<S | null> {
+    if (!this.next && !this.ended && this.iter) {
+      const r = await this.iter.next()
+      if (r.done) this.ended = true
+      else this.next = r.value
+    }
+    return this.next
+  }
+
   private async restart(t: number): Promise<void> {
     await this.dispose()
     this.restarts++
