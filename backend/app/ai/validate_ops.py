@@ -262,7 +262,12 @@ class DryRun:
         _check_accepts(track, asset)
         data = inp.model_copy(deep=True)
         clip = Clip.model_validate(
-            {**data.model_dump(exclude={"id", "markers", "sections", "effects"}), "id": "tmp_x"}
+            {
+                **data.model_dump(exclude={"id", "markers", "sections", "effects"}),
+                "id": "tmp_x",
+                "markers": [],
+                "effects": [],
+            }
         )
         clip.id = self.alloc("clp", inp.id)
         clip.markers = [

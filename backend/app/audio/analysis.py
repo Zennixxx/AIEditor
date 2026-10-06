@@ -75,6 +75,11 @@ class MusicAnalysisService:
         payload = {"paramsHash": phash, "analysis": analysis.model_dump(by_alias=True, exclude_none=True)}
         atomic.write_json(self._cache_file(analysis.asset_id), payload)
 
+    def replace(self, analysis: MusicAnalysis) -> None:
+        """Переписать кэш тем же ключом параметров (секции от Gemini)."""
+        cached = self._read_cache(analysis.asset_id)
+        self._write_cache(analysis, cached[0] if cached else params_hash(analysis.params))
+
     # ---------- запуск ----------
 
     def _source(self, asset: Asset) -> Path:

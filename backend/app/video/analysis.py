@@ -64,7 +64,7 @@ class ClipAnalysisService:
             log.warning("broken clip analysis %s ignored", f)
             return None
 
-    def _write(self, analysis: ClipAnalysis) -> None:
+    def write(self, analysis: ClipAnalysis) -> None:
         atomic.write_json(
             self._file(analysis.asset_id), analysis.model_dump(by_alias=True, exclude_none=True)
         )
@@ -127,5 +127,5 @@ class ClipAnalysisService:
             return build_local_analysis(asset_id, cuts, motion_curve(frames, cuts), asset.duration)
 
         analysis = await asyncio.to_thread(compute)
-        self._write(analysis)
+        self.write(analysis)
         return analysis

@@ -20,6 +20,12 @@ _пусто_
 
 ## Applied
 
+### v1.9 — фаза 7: ИИ-анализ, автоэдит, стиль по референсу (совместимо)
+- Дата: 2026-10-06
+- Автор: единый агент
+- Что: эндпоинт `GET /presets/styles` → `StylePreset[]` (пользовательские стили, `data/presets.json` → `styles`); CONTRACT §8 — kind задач ИИ-эндпоинтов; §8.2 — коды ошибок `analyze-clip`, `analyze-music`, `auto-edit`, `style-from-reference` (`asset_not_ready`, `not_video`, `no_audio`, `clip_not_found`, `no_markers`, `unknown_style`, `bad_range`); новые §8.5–8.7 — ИИ-анализ клипа и музыки, состав ops автоэдита, расчёт `cutDensity` по референсу.
+- Совместимость: да, схема и типы не меняются (`StylePreset` уже есть).
+
 ### v1.8 — фаза 7: копилот (только документация)
 - Дата: 2026-10-06
 - Автор: единый агент

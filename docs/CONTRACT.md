@@ -420,12 +420,13 @@ interface EffectDef {
 | GET | `/projects/{id}` | — | `Project` |
 | PUT | `/projects/{id}` | `Project` (с текущим `revision`) | `Project` (revision+1) или 409 при конфликте |
 | GET | `/presets` | — | `EffectPreset[]` (порядок создания) |
+| GET | `/presets/styles` | — | `StylePreset[]` — пользовательские стили (из `style-from-reference`), порядок сохранения |
 | POST | `/presets` | `CreateEffectPresetRequest` `{name, description?, effects}` | `EffectPreset` с новым `id` (`pst_`) |
-| POST | `/ai/analyze-clip/{id}` | `{force?: bool}` | `JobRef` → `ClipAnalysis` |
-| POST | `/ai/analyze-music/{id}` | — | `JobRef` → `MusicAnalysis` (секции обогащены) |
+| POST | `/ai/analyze-clip/{id}` | `{force?: bool}` | `JobRef` (kind `clipAnalysis`) → `ClipAnalysis` (§8.5) |
+| POST | `/ai/analyze-music/{id}` | — | `JobRef` (kind `aiMusic`) → `MusicAnalysis` (секции обогащены, §8.5) |
 | POST | `/ai/command` | `AICommandRequest` | `OpsResult` |
-| POST | `/ai/auto-edit` | `AutoEditRequest` | `JobRef` → `OpsResult` |
-| POST | `/ai/style-from-reference/{id}` | — | `JobRef` → `StylePreset` |
+| POST | `/ai/auto-edit` | `AutoEditRequest` | `JobRef` (kind `autoEdit`) → `OpsResult` (§8.6); работает и без ключа Gemini |
+| POST | `/ai/style-from-reference/{id}` | — | `JobRef` (kind `styleRef`) → `StylePreset` (§8.7); без ключа — только плотность склеек |
 | POST | `/export/ae-jsx` | `Project` | скрипт ExtendScript для After Effects: `text/javascript; charset=utf-8`, `Content-Disposition: attachment` (§8.3) |
 | GET | `/jobs/{id}` | — | `Job` |
 | DELETE | `/jobs/{id}` | — | `Job` (canceled) |
@@ -520,6 +521,17 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 | `POST /presets` | 422 | `invalid_preset` | `errors: string[]` — неизвестный эффект или параметр, значение вне диапазона / не из `options` / не того типа |
 | `POST /ai/command` | 503 | `gemini_not_configured` | ключ Gemini не задан |
 | | 502 | `gemini_failed` | `reason`: `gemini_failed` (сеть, таймаут, ошибка API после повторов) \| `gemini_empty` \| `gemini_bad_response` (ответ не по схеме) |
+| `POST /ai/analyze-clip/{id}`, `/ai/analyze-music/{id}` | 503 | `gemini_not_configured` | — |
+| `POST /ai/analyze-clip/{id}`, `/ai/analyze-music/{id}`, `/ai/style-from-reference/{id}` | 404 | `asset_not_found` | — |
+| | 409 | `asset_not_ready` | нет `proxy.mp4` (видео) / `audio.m4a` (музыка) — импорт не закончен |
+| `POST /ai/analyze-clip/{id}`, `/ai/style-from-reference/{id}` | 422 | `not_video` | ассет не видео или производный |
+| `POST /ai/analyze-music/{id}` | 422 | `no_audio` | — |
+| `POST /ai/auto-edit` | 422 | `clip_not_found` | `musicClipId` нет в проекте |
+| | 422 | `no_markers` | у музыкального клипа нет маркеров |
+| | 422 | `unknown_style` | `style` нет в `shared/styles.json`, или `"custom"` без `customStyle` |
+| | 422 | `bad_range` | диапазон пуст / вне музыкального клипа |
+| | 404 | `asset_not_found` | ассета из `assetIds` нет ни в библиотеке, ни в `project.assets` |
+| | 422 | `not_video` | в `assetIds` аудио или производный ассет |
 | любой | 422 | `validation_error` | ошибки валидации |
 
 Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`. Ошибка RIFE задачу не роняет — бэк переходит на `minterpolate` (`parent.quality: "fallback"`).
@@ -531,6 +543,29 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 - `warnings` также сообщает о мягких исправлениях: параметр эффекта вне диапазона приведён к границе, неизвестный параметр отброшен.
 - `ops: []` с вопросом в `explanation` — модель просит уточнить команду.
 - `setTimeRemap` со снятием кривой передаётся с явным `"timeRemap": null`.
+
+### 8.5 ИИ-анализ клипа и музыки
+
+- Ошибка Gemini не возвращается HTTP-кодом, а роняет задачу: `job.error.code` — `gemini_failed` | `gemini_empty` | `gemini_bad_response` | `gemini_upload_failed`.
+- `analyze-clip`: дожидается локального анализа (движение, склейки), грузит в Gemini `proxy.mp4` (длиннее 3 мин — низкое разрешение медиа). Результат дополняет тот же `ClipAnalysis` (`GET /analysis/clip/{id}`): `model`, `summary`, `moments` (обрезаны по `[0, duration]`, границы расширены до локального минимума `motion` в пределах ±0.5 с внутри плана, не больше 20, по `start`), `shots[].type` (крупность по пересечению с ответом модели; границы планов — локальные склейки), `motion` — локальный. Повторный запрос отдаёт сохранённый результат без Gemini, `force: true` — переанализ.
+- `analyze-music`: нужен DSP-анализ (нет — запускается с параметрами по умолчанию, задача ждёт его). Gemini слушает `audio.m4a` и подписывает секции (`label`, `description`). Граница принимается, только если совпадает с границей DSP или даунбитом (±0.2 с, ставится ровно на них) и секции не короче 4 с; `energy` пересчитывается по RMS-кривой. Результат перезаписывает `GET /analysis/music/{id}`; фронт переносит секции в `clip.sections` обычной транзакцией (§4).
+
+### 8.6 Автоэдит (`POST /ai/auto-edit`)
+
+- Слоты: по секциям музыкального клипа (иначе `project.sections`, иначе одна секция `other`) в диапазоне эдита — маркеры по `StylePreset.cutDensity[label]` (если в секции длиннее 2 с после её начала нет ни одного такого маркера — любые `downbeat`/`beat`/`bass`); стыки — ровно в маркерах, края — `range` (по умолчанию весь музыкальный клип); слоты короче 2 кадров сливаются.
+- Кандидаты: `ClipAnalysis.moments` ассетов (при ключе Gemini ассеты без ИИ-анализа анализируются в рамках задачи); без моментов — окна по 2 с с наибольшей энергией движения внутри планов; картинка — один кандидат.
+- Назначение: Gemini Pro (`assignments`, `ramps`, предложения эффектов), неназначенные слоты дозаполняются жадно; без ключа или при ошибке Gemini — жадно по `score` со штрафом за повтор и соседство, ramp по правилам стиля; причина — в `warnings`.
+- Ответ — `OpsResult` после сухого прогона (§8.4):
+  1. `addTrack` новой video-дорожки `tmp_autoedit` «Автоэдит: <стиль>» поверх всех;
+  2. `addClip` на каждый слот: `start`/`duration` — слот; окно исходника вокруг центра момента; не хватает исходника — `speed < 1`; ramp — `timeRemap` пресета (`fit: "stretch"`) прямо в `clip`, окно = длительность слота × средняя скорость пресета; у ассетов со звуком `volume: 0`; у картинок `sourceIn: 0`;
+  3. при `intensity > 0`: дорожка `tmp_autoedit_transitions` «Переходы» с `addEffect` переходов стиля (центр на стыке; на границе секций — с `probability`, на даунбите — с `probability × intensity`); `applyEffectToMarkers` по правилам стиля и предложениям Gemini (`target: "newFxTrack"`, `scaleByStrength`, фильтр с `musicClipId` и `range` эдита, `strength` × (0.5 + intensity), при `intensity < 0.34` — `every × 2`; правила без маркеров пропускаются); `globalEffects` — отдельная fx-дорожка на эффект на весь диапазон;
+  4. вероятности правил разыгрываются детерминированно: одинаковый запрос → одинаковый результат.
+
+### 8.7 Стиль по референсу (`POST /ai/style-from-reference/{id}`)
+
+- `cutDensity` — из DSP референса: его склейки (локальный анализ) против маркеров его звука (DSP-анализ, если звук есть) по секциям. Не меньше 40 % склеек на басах (±0.08 с) → `kinds: ["bass"]`, `minStrength` — нижний дециль силы попавших басов − 0.05; иначе `["beat", "downbeat"]`; `every` — отношение числа подходящих маркеров к числу склеек (1..8). Секции без склеек — `downbeat`, `every: 2`; метки, которых нет в референсе, — плотность по всему видео.
+- `effects`, `globalEffects`, `ramps`, `transitions`, `name`, `description`, `notes` — от Gemini Pro по видео, только из реестра и пресетов ramp; без ключа — пустые списки.
+- `id` = `ref_<id ассета без ast_>`; стиль сохраняется (с заменой того же `id`) в `data/presets.json` (`styles`) и отдаётся `GET /presets/styles`. В автоэдит передаётся как `style: "custom"` + `customStyle`.
 
 ### 8.3 Экспорт
 

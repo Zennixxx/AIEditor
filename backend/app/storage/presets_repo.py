@@ -1,4 +1,4 @@
-"""Пользовательские пресеты эффектов: data/presets.json = {version, presets} — CONTRACT §8."""
+"""Пользовательские пресеты: data/presets.json = {version, presets, styles?} — CONTRACT §8."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from app.ids import new_id
 from app.jobs.events import dump
-from app.models.gen import CreateEffectPresetRequest, EffectPreset
+from app.models.gen import CreateEffectPresetRequest, EffectPreset, StylePreset
 from app.storage import atomic
 from app.storage.paths import DataPaths
 
@@ -62,3 +62,27 @@ class PresetsRepo:
                 {**raw, "version": FILE_VERSION, "presets": [dump(p) for p in presets]},
             )
         return preset
+
+    def list_styles(self) -> list[StylePreset]:
+        with self._lock:
+            raw = self._read()[0]
+        styles: list[StylePreset] = []
+        for item in raw.get("styles", []):
+            try:
+                styles.append(StylePreset.model_validate(item))
+            except ValidationError:
+                log.warning("Пользовательский стиль пропущен: не по схеме")
+        return styles
+
+    def save_style(self, style: StylePreset) -> None:
+        """Добавить стиль или заменить стиль с тем же id."""
+        with self._lock:
+            raw, presets = self._read()
+            styles = [
+                s for s in raw.get("styles", []) if not (isinstance(s, dict) and s.get("id") == style.id)
+            ]
+            styles.append(dump(style))
+            atomic.write_json(
+                self.paths.presets_file,
+                {**raw, "version": FILE_VERSION, "presets": [dump(p) for p in presets], "styles": styles},
+            )

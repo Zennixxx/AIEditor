@@ -9,8 +9,12 @@ from logging.handlers import RotatingFileHandler
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.autoedit import AutoEditService, load_styles
 from app.ai.client import create_llm
+from app.ai.clip import ClipAIService
 from app.ai.command import CopilotService, load_ramp_presets
+from app.ai.music import MusicAIService
+from app.ai.style import StyleRefService
 from app.audio.analysis import MusicAnalysisService
 from app.config import VERSION, Settings, ffmpeg_bin, get_settings, rife_bin
 from app.effects.registry import load_registry
@@ -66,6 +70,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.analysis = MusicAnalysisService(settings, paths, app.state.assets, app.state.jobs)
         app.state.clip_analysis = ClipAnalysisService(settings, paths, app.state.assets, app.state.jobs)
+        app.state.clip_ai = ClipAIService(paths, app.state.assets, app.state.jobs, app.state.clip_analysis)
+        app.state.music_ai = MusicAIService(paths, app.state.jobs, app.state.analysis)
+        app.state.auto_edit = AutoEditService(
+            app.state.registry,
+            load_styles(settings.aieditor_shared_dir),
+            load_ramp_presets(settings.aieditor_shared_dir),
+            app.state.assets,
+            app.state.jobs,
+            app.state.clip_analysis,
+            app.state.clip_ai,
+        )
+        app.state.style_ref = StyleRefService(
+            paths,
+            app.state.assets,
+            app.state.jobs,
+            app.state.clip_analysis,
+            app.state.analysis,
+            app.state.presets,
+            app.state.registry,
+            load_ramp_presets(settings.aieditor_shared_dir),
+        )
         app.state.interpolation = InterpolationService(settings, paths, app.state.assets, app.state.jobs, hub)
         app.state.media = MediaService(
             settings, paths, app.state.assets, app.state.jobs, hub, app.state.clip_analysis
