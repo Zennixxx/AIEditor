@@ -9,6 +9,7 @@ import type {
   EffectAnchor,
   EffectItem,
   Marker,
+  MarkerFilter,
   MarkerInput,
   Project,
   RampKeyframe,
@@ -242,16 +243,43 @@ class Tx {
         return
       }
       case 'cutToMarkers':
-        return this.expand(expandCutToMarkers(this.snapshot(), op, this.ctx))
+        return this.expand(
+          expandCutToMarkers(
+            this.snapshot(),
+            {
+              ...op,
+              clipIds: op.clipIds.map((id) => this.ref(id)),
+              filter: this.refFilter(op.filter),
+              ...(op.trackId ? { trackId: this.ref(op.trackId) } : {}),
+            },
+            this.ctx,
+          ),
+        )
       case 'snapClipEdgesToMarkers':
-        return this.expand(expandSnapClipEdges(this.snapshot(), op))
+        return this.expand(
+          expandSnapClipEdges(this.snapshot(), {
+            ...op,
+            clipIds: op.clipIds.map((id) => this.ref(id)),
+            filter: this.refFilter(op.filter),
+          }),
+        )
       case 'applyEffectToMarkers':
-        return this.expand(expandApplyEffectToMarkers(this.snapshot(), op))
+        return this.expand(
+          expandApplyEffectToMarkers(this.snapshot(), {
+            ...op,
+            filter: this.refFilter(op.filter),
+            target: typeof op.target === 'object' ? { trackId: this.ref(op.target.trackId) } : op.target,
+          }),
+        )
       default: {
         const unknown = op as { op?: unknown }
         throw new OpsError('unknown_op', `Неизвестный op ${String(unknown.op)}`)
       }
     }
+  }
+
+  private refFilter(f: MarkerFilter): MarkerFilter {
+    return f.musicClipId ? { ...f, musicClipId: this.ref(f.musicClipId) } : f
   }
 
   /** Состояние проекта на момент макро-op (с учётом предыдущих ops списка). */

@@ -2,6 +2,8 @@ import { useRef, useState, type DragEvent as ReactDragEvent } from 'react'
 import { assetsApi } from '@/api/assets'
 import type { Asset, Job, JobKind } from '@/shared/types.gen'
 import { activeJobs, failedJobs, useAssets } from '@/store/assets'
+import { useBackend } from '@/store/backend'
+import { useClipAnalysis } from '@/store/clipAnalysis'
 import { getThumbs, tilesPerSprite, useMediaVersion } from '@/store/media'
 import { useUi } from '@/store/ui'
 import { ASSET_DND_TYPE } from '@/timeline/dnd'
@@ -14,6 +16,7 @@ const JOB_LABELS: Partial<Record<JobKind, string>> = {
   thumbs: 'Превью-кадры',
   waveform: 'Waveform',
   mezzanine: 'Mezzanine',
+  clipAnalysis: 'Анализ',
 }
 
 const ACCEPT = 'video/*,audio/*,image/*,.mov,.mkv,.mp3,.wav,.flac,.m4a'
@@ -132,6 +135,7 @@ function AssetCard({ asset }: { asset: Asset }) {
         {running.map((j) => (
           <JobProgress key={j.id} job={j} />
         ))}
+        {asset.kind === 'video' && ready && !asset.parent && <AiAnalysis asset={asset} />}
         {failed.map((j) => (
           <span key={j.id} className={styles.jobError} title={j.error?.message}>
             {JOB_LABELS[j.kind] ?? j.kind}: {j.error?.message ?? 'ошибка'}
@@ -178,5 +182,40 @@ function Thumb({ asset }: { asset: Asset }) {
         backgroundPosition: `${-col * thumbs.tileWidth * scale}px ${-row * thumbs.tileHeight * scale}px`,
       }}
     />
+  )
+}
+
+function AiAnalysis({ asset }: { asset: Asset }) {
+  const analysis = useClipAnalysis((s) => s.byAsset[asset.id])
+  const running = useClipAnalysis((s) => s.running[asset.id])
+  const error = useClipAnalysis((s) => s.errors[asset.id])
+  const gemini = useBackend((s) => s.health?.gemini)
+  const done = !!analysis?.model
+  const title = done
+    ? `${analysis.summary}
+Моментов: ${analysis.moments.length}. Нажмите, чтобы проанализировать заново.`
+    : gemini === false
+      ? 'Ключ Gemini не задан на бэке'
+      : 'Найти моменты для эдита (Gemini)'
+  return (
+    <span className={styles.ai}>
+      <button
+        className={styles.aiButton}
+        disabled={!!running || gemini === false}
+        title={title}
+        onClick={(e) => {
+          e.stopPropagation()
+          void useClipAnalysis.getState().analyze(asset.id, done)
+        }}
+        data-testid="asset-ai-analyze"
+      >
+        {running ? 'ИИ…' : done ? `ИИ ✓ ${analysis.moments.length}` : 'Проанализировать ИИ'}
+      </button>
+      {error && (
+        <span className={styles.jobError} title={error}>
+          {error}
+        </span>
+      )}
+    </span>
   )
 }

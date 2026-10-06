@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, type DragEvent as ReactDragEvent } from 'react'
 import { allClips } from '@/model/lookup'
 import { getImage, getThumbs, getWaveform, onMediaLoaded, thumbTile } from '@/store/media'
+import { useAi } from '@/store/ai'
 import { useAssets } from '@/store/assets'
+import { useClipAnalysis } from '@/store/clipAnalysis'
 import { useInterpolation } from '@/store/interpolation'
 import { usableInterpolation } from '@/model/interpolation'
 import { useProject } from '@/store/project'
@@ -9,6 +11,7 @@ import { useUi } from '@/store/ui'
 import { TimelineController, type PointerInfo } from './controller'
 import { ASSET_DND_TYPE, EFFECT_DND_TYPE, PRESET_DND_TYPE } from './dnd'
 import { followPlayhead, layoutTracks } from './geometry'
+import { hitMoment } from './momentLayout'
 import {
   DEFAULT_PALETTE,
   drawTimeline,
@@ -54,7 +57,9 @@ function pointerInfo(e: PointerEvent | MouseEvent, canvas: HTMLCanvasElement): P
 
 /** Таймлайн: один <canvas> (линейка, дорожки, клипы, плейхед), перерисовка по rAF только при изменениях. */
 export function Timeline() {
-  const project = useProject((s) => s.project)
+  const current = useProject((s) => s.project)
+  const preview = useAi((s) => s.preview)
+  const project = preview?.project ?? current
   const scrollY = useUi((s) => s.scrollY)
   const selectionCount = useUi((s) => s.selection.length)
   const lanes = useUi((s) => s.propLanes)
@@ -99,7 +104,9 @@ export function Timeline() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       const ui = useUi.getState()
       const assets = useAssets.getState().assets
-      const p = useProject.getState().project
+      const aiPreview = useAi.getState().preview
+      const p = aiPreview?.project ?? useProject.getState().project
+      const analyses = useClipAnalysis.getState().byAsset
       const lookup = (id: string) => assets[id] ?? p.assets.find((a) => a.id === id)
       const jobs = useInterpolation.getState().byClip
       drawTimeline(ctx, {
@@ -118,6 +125,8 @@ export function Timeline() {
         palette,
         inPoint: ui.inPoint,
         outPoint: ui.outPoint,
+        clipAnalysis: (id) => analyses[id],
+        highlight: aiPreview?.project ? aiPreview : null,
         interpolation: (clip): InterpolationView | null => {
           const job = jobs[clip.id]
           if (job) return { state: job.status, progress: job.progress }
@@ -151,6 +160,8 @@ export function Timeline() {
       useProject.subscribe(redraw),
       useAssets.subscribe(redraw),
       useInterpolation.subscribe(redraw),
+      useAi.subscribe(redraw),
+      useClipAnalysis.subscribe(redraw),
       useUi.subscribe((s, prev) => {
         // автоскролл за плейхедом при воспроизведении (фаза 1b включает `playing`)
         if (s.playing && s.playhead !== prev.playhead) {
@@ -171,7 +182,17 @@ export function Timeline() {
         e.preventDefault()
       }
     }
-    const onMove = (e: PointerEvent) => controller.pointerMove(pointerInfo(e, canvas))
+    const onMove = (e: PointerEvent) => {
+      const info = pointerInfo(e, canvas)
+      controller.pointerMove(info)
+      if (e.buttons !== 0) return
+      const analyses = useClipAnalysis.getState().byAsset
+      const m = hitMoment(controller.rows(), controller.view(), info.x, info.y, (id) => analyses[id])
+      const title = m
+        ? `${m.description} · ${Math.round(m.score * 100)}%${m.tags.length ? ` · ${m.tags.join(', ')}` : ''}`
+        : ''
+      if (canvas.title !== title) canvas.title = title
+    }
     const onUp = (e: PointerEvent) => controller.pointerUp(pointerInfo(e, canvas))
     const onDouble = (e: MouseEvent) => {
       controller.doubleClick(pointerInfo(e, canvas))
@@ -237,6 +258,7 @@ export function Timeline() {
       data-clip-count={clipCount}
       data-effect-count={effectCount}
       data-selection-count={selectionCount}
+      data-ai-preview={preview ? 'on' : undefined}
     >
       <TrackHeaders rows={rows} scrollY={scrollY} />
       <div

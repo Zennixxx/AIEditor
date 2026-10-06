@@ -146,3 +146,28 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.ai {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.aiButton {
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 10px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  background: var(--accent-dim);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.aiButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

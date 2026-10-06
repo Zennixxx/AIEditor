@@ -16,6 +16,7 @@ import { getEffectDef } from '@/shared/effects-registry'
 import { collectSnapTargets, snapPoint, snapSpan, snapThreshold, type SnapTarget } from '@/model/snapping'
 import { snapToFrame } from '@/shared/time'
 import type { Project, Track, TrackItem } from '@/shared/types.gen'
+import { displayedProject, useAi } from '@/store/ai'
 import { useAssets } from '@/store/assets'
 import { autoAnalyzeClips } from '@/store/analysis'
 import { useProject } from '@/store/project'
@@ -25,6 +26,7 @@ import {
   itemsInRect,
   layoutTracks,
   maxScrollY,
+  RULER_H,
   rowAtY,
   rowScreenTop,
   xToTime,
@@ -135,7 +137,7 @@ export class TimelineController {
   }
 
   rows(): TrackRow[] {
-    const project = useProject.getState().project
+    const project = displayedProject()
     const lanes = useUi.getState().propLanes
     if (this.rowsCache?.project !== project || this.rowsCache.lanes !== lanes)
       this.rowsCache = { project, lanes, rows: layoutTracks(project, lanes) }
@@ -180,7 +182,7 @@ export class TimelineController {
   markers(): MarkerView[] {
     const { markerVisibility, markerSelection } = useUi.getState()
     const v = this.view()
-    const project = useProject.getState().project
+    const project = displayedProject()
     const key = [
       project,
       v.pxPerSec,
@@ -200,7 +202,7 @@ export class TimelineController {
 
   /** Секции композиции и музыки в timeline time (кэш по проекту). */
   sections(): TimelineSection[] {
-    const project = useProject.getState().project
+    const project = displayedProject()
     if (this.sectionCache?.project !== project)
       this.sectionCache = { project, value: timelineSections(project) }
     return this.sectionCache.value
@@ -210,6 +212,8 @@ export class TimelineController {
 
   pointerDown(p: PointerInfo): boolean {
     if (p.button !== 0) return false
+    // предпросмотр ИИ: таймлайн показывает результат ops, правка заблокирована — только скраб по линейке
+    if (useAi.getState().preview && p.y >= RULER_H) return false
     const v = this.view()
     const rows = this.rows()
     const hit = hitTest(rows, v, p.x, p.y)
@@ -387,6 +391,7 @@ export class TimelineController {
 
   /** Двойной клик по маркеру: редактирование label/цвета в инспекторе; по ключу — плейхед на ключ. */
   doubleClick(p: PointerInfo): boolean {
+    if (useAi.getState().preview) return false
     const key = hitKey(this.keys(), p.x, p.y)
     if (key) {
       useUi.getState().setPlayhead(key.clip.start + key.ref.t)

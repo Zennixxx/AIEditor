@@ -523,3 +523,13 @@ describe('applyOps', () => {
     })
   })
 })
+
+describe('macro ops with temporary ids', () => {
+  it('resolve tmp_ track, clip and music clip ids created earlier in the list', () => {
+    const p = structuredClone(fixtures.project)
+    const res = applyOps(p, fixtures.opsResult.ops)
+    const track = res.project.tracks.find((t) => t.name === 'AI: шейк')!
+    expect(track.id.startsWith('trk_')).toBe(true)
+    expect(track.items.length).toBeGreaterThan(0)
+  })
+})

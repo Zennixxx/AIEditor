@@ -1,0 +1,207 @@
+.ai {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: 12px;
+}
+
+.headerButton {
+  height: 20px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.notice {
+  padding: 6px 10px;
+  color: var(--warn);
+  border-bottom: 1px solid var(--border);
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.placeholder,
+.thinking {
+  color: var(--text-faint);
+}
+
+.message {
+  max-width: 92%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--panel-3);
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.message[data-role='user'] {
+  align-self: flex-end;
+  background: var(--accent-dim);
+}
+
+.message[data-error] {
+  color: var(--err);
+}
+
+.warning {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--warn);
+}
+
+.status {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: #8b6cff14;
+}
+
+.previewTitle {
+  font-weight: 600;
+}
+
+.lines {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-dim);
+}
+
+.more {
+  align-self: flex-start;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.error {
+  color: var(--err);
+}
+
+.previewActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.previewActions button,
+.chip {
+  height: 22px;
+  padding: 0 10px;
+  font: inherit;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--panel-3);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.previewActions .primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.previewActions button:disabled,
+.chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px 0;
+}
+
+.chip {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
+.context {
+  padding: 4px 10px 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.input {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px 6px;
+}
+
+.input textarea {
+  flex: 1;
+  resize: none;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 4px 6px;
+  user-select: text;
+}
+
+.input textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.send {
+  width: 32px;
+  font: inherit;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}

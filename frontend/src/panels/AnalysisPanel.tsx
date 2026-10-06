@@ -4,6 +4,7 @@ import { findClip } from '@/model/lookup'
 import type { MusicAnalysisParams } from '@/shared/types.gen'
 import { useAnalysis } from '@/store/analysis'
 import { useAssets } from '@/store/assets'
+import { useBackend } from '@/store/backend'
 import { useProject } from '@/store/project'
 import styles from './Inspector.module.css'
 
@@ -15,6 +16,8 @@ export function AnalysisPanel({ clipId }: { clipId: string }) {
   const running = useAnalysis((s) => s.running[clipId])
   const error = useAnalysis((s) => s.errors[clipId])
   const progress = useAssets((s) => (running?.jobId ? s.jobs[running.jobId]?.progress : undefined))
+  const aiRunning = useAnalysis((s) => s.aiRunning[clipId])
+  const gemini = useBackend((s) => s.health?.gemini)
   const [params, setParams] = useState<MusicAnalysisParams>(result?.params ?? DEFAULT_ANALYSIS_PARAMS)
   const [dirty, setDirty] = useState(false)
   if (!clip) return null
@@ -91,6 +94,29 @@ export function AnalysisPanel({ clipId }: { clipId: string }) {
         <div className={styles.bar} data-testid="analysis-progress">
           <div className={styles.fill} style={{ width: `${Math.round((progress ?? 0) * 100)}%` }} />
         </div>
+      )}
+      {analyzed && (
+        <button
+          disabled={!!aiRunning || !!running || gemini === false}
+          onClick={() => void useAnalysis.getState().aiSections(clipId)}
+          title={
+            gemini === false
+              ? 'Ключ Gemini не задан на бэке'
+              : 'Gemini подпишет секции: вступление, дроп, брейк…'
+          }
+          data-testid="ai-sections-button"
+        >
+          {aiRunning ? 'ИИ слушает трек…' : 'ИИ-разметка секций'}
+        </button>
+      )}
+      {clip.sections?.some((s) => s.description) && (
+        <ul className={styles.hint} data-testid="ai-sections">
+          {clip.sections.map((s) => (
+            <li key={s.id}>
+              {s.label}: {s.description ?? '—'}
+            </li>
+          ))}
+        </ul>
       )}
       {error && <div className={styles.error}>{error}</div>}
       {analyzed && (

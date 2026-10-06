@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import { AutoEditWizard } from '@/ai/AutoEditWizard'
+import { AIPanel } from '@/panels/AIPanel'
 import { EffectsLibrary } from '@/panels/EffectsLibrary'
 import { ExportDialog } from '@/panels/ExportDialog'
 import { Inspector } from '@/panels/Inspector'
@@ -34,7 +36,10 @@ export function App() {
               <EffectsLibrary />
             </SplitPane>
             <Preview />
-            <Inspector />
+            <SplitPane id="right-column" direction="column" initial={[0.42, 0.58]} min={[120, 200]}>
+              <Inspector />
+              <AIPanel />
+            </SplitPane>
           </SplitPane>
           <TimelinePanel />
         </SplitPane>
@@ -42,6 +47,7 @@ export function App() {
       <CutDialog />
       <FxDialog />
       <ExportDialog />
+      <AutoEditWizard />
     </div>
   )
 }

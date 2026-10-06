@@ -10,6 +10,7 @@ import type {
   OpsResult,
   Project,
   RampPresetsFile,
+  StylesFile,
   Thumbs,
   TimeRemapVectorsFile,
   Waveform,
@@ -27,6 +28,7 @@ import rampPresetsJson from '@shared/fixtures/ramp_presets.json'
 import thumbsJson from '@shared/fixtures/thumbs_video_a.json'
 import timeRemapVectorsJson from '@shared/fixtures/time_remap_vectors.json'
 import waveformJson from '@shared/fixtures/waveform_music.json'
+import stylesJson from '@shared/styles.json'
 
 export const fixtures = {
   health: healthJson as Health,
@@ -42,6 +44,7 @@ export const fixtures = {
   rampPresets: rampPresetsJson as unknown as RampPresetsFile,
   presets: presetsJson as unknown as EffectPreset[],
   timeRemapVectors: timeRemapVectorsJson as unknown as TimeRemapVectorsFile,
+  styles: (stylesJson as unknown as StylesFile).styles,
 }
 
 /** Глубокая копия, чтобы моки не мутировали общий объект фикстуры. */

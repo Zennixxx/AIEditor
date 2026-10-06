@@ -14,13 +14,20 @@ async function enableMocks(): Promise<void> {
 async function exposeDebug(): Promise<void> {
   // dev: сторы доступны из консоли и e2e (window.__aieditor) — проверка превью, замер fps
   if (!import.meta.env.DEV) return
-  const [{ useProject }, { useUi }, { player }, { exportDebug }] = await Promise.all([
+  const [{ useProject }, { useUi }, { useAi }, { player }, { exportDebug }] = await Promise.all([
     import('./store/project'),
     import('./store/ui'),
+    import('./store/ai'),
     import('./playback/player'),
     import('./export/debug'),
   ])
-  ;(window as unknown as Record<string, unknown>).__aieditor = { useProject, useUi, player, exportDebug }
+  ;(window as unknown as Record<string, unknown>).__aieditor = {
+    useProject,
+    useUi,
+    useAi,
+    player,
+    exportDebug,
+  }
 }
 
 const root = document.getElementById('root')

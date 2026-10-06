@@ -1,8 +1,9 @@
 // Анализ музыки: запуск на бэке, ожидание задачи, перенос результата в проект одной транзакцией ops (CONTRACT §4).
 import { create } from 'zustand'
+import { aiApi } from '@/api/ai'
 import { analysisApi } from '@/api/analysis'
 import { ApiError } from '@/api/client'
-import { canHoldAnalysis, planApplyAnalysis } from '@/model/markers'
+import { analysisSections, canHoldAnalysis, planApplyAnalysis } from '@/model/markers'
 import { findClip } from '@/model/lookup'
 import type { MusicAnalysis, MusicAnalysisParamsInput } from '@/shared/types.gen'
 import { waitForJob } from './jobWait'
@@ -20,7 +21,11 @@ interface AnalysisState {
   results: Record<string, MusicAnalysis>
   /** clipId → сообщение об ошибке последнего анализа. */
   errors: Record<string, string>
+  /** clipId → идёт ИИ-разметка секций (CONTRACT §8.5). */
+  aiRunning: Record<string, { jobId: string | null }>
   analyze: (clipId: string, opts?: AnalyzeOptions) => Promise<boolean>
+  /** Gemini подписывает секции трека; результат — `setSections` клипа одной транзакцией. */
+  aiSections: (clipId: string) => Promise<boolean>
 }
 
 const isMusicAnalysis = (x: unknown): x is MusicAnalysis =>
@@ -34,6 +39,7 @@ async function awaitMusicJob(jobId: string): Promise<MusicAnalysis> {
 }
 
 function messageOf(e: unknown): string {
+  if (e instanceof ApiError && e.code === 'gemini_not_configured') return 'Ключ Gemini не задан на бэке'
   if (e instanceof ApiError || e instanceof Error) return e.message
   return 'Не удалось выполнить анализ'
 }
@@ -42,6 +48,7 @@ export const useAnalysis = create<AnalysisState>()((set, get) => ({
   running: {},
   results: {},
   errors: {},
+  aiRunning: {},
 
   analyze: async (clipId, opts = {}) => {
     if (get().running[clipId]) return false
@@ -68,6 +75,33 @@ export const useAnalysis = create<AnalysisState>()((set, get) => ({
       return false
     } finally {
       set((s) => ({ running: omit(s.running, clipId) }))
+    }
+  },
+
+  aiSections: async (clipId) => {
+    if (get().aiRunning[clipId]) return false
+    const ref = findClip(useProject.getState().project, clipId)
+    if (!ref || !canHoldAnalysis(useProject.getState().project, clipId)) return false
+    const assetId = ref.clip.assetId
+    set((s) => ({ aiRunning: { ...s.aiRunning, [clipId]: { jobId: null } }, errors: omit(s.errors, clipId) }))
+    try {
+      const { jobId } = await aiApi.analyzeMusic(assetId)
+      set((s) => ({ aiRunning: { ...s.aiRunning, [clipId]: { jobId } } }))
+      const analysis = await awaitMusicJob(jobId)
+      set((s) => ({ results: { ...s.results, [assetId]: analysis } }))
+      if (!findClip(useProject.getState().project, clipId)) return false
+      const res = useProject
+        .getState()
+        .dispatch([{ op: 'setSections', target: { clipId }, sections: analysisSections(analysis) }], {
+          label: 'ИИ-секции',
+        })
+      if (!res.ok) throw new Error(res.error.message)
+      return true
+    } catch (e) {
+      set((s) => ({ errors: { ...s.errors, [clipId]: messageOf(e) } }))
+      return false
+    } finally {
+      set((s) => ({ aiRunning: omit(s.aiRunning, clipId) }))
     }
   },
 }))

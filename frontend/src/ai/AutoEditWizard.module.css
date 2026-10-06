@@ -1,0 +1,70 @@
+.wizard {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.steps {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-faint);
+}
+
+.steps li[data-done] {
+  color: var(--text-dim);
+}
+
+.steps li[data-active] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tall {
+  max-height: 220px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.wizard .card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  height: auto;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.cardName {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cardDesc {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}

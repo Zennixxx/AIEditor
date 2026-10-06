@@ -4,7 +4,16 @@ import { clipKeyTimes } from '@/model/clipKeys'
 import { clipAnimatable, evaluateAnimatable, isAnimated, LANE_FIELDS, type LaneProp } from '@/model/keyframes'
 import { isClip } from '@/model/lookup'
 import { getEffectDef } from '@/shared/effects-registry'
-import type { Asset, Clip, Ease, Project, Thumbs, TrackItem, Waveform } from '@/shared/types.gen'
+import type {
+  Asset,
+  Clip,
+  ClipAnalysis,
+  Ease,
+  Project,
+  Thumbs,
+  TrackItem,
+  Waveform,
+} from '@/shared/types.gen'
 import { SECTION_COLORS } from '@/model/markers'
 import type { TimelineSection } from '@/model/sections'
 import {
@@ -20,6 +29,7 @@ import {
 } from './geometry'
 import type { KeyView } from './keyLayout'
 import type { MarkerView } from './markerLayout'
+import { MOMENT_H, momentRects } from './momentLayout'
 import { rulerTicks } from './ruler'
 import { speedColor } from './speedColor'
 
@@ -107,6 +117,10 @@ export interface Scene {
   inPoint?: number | null
   outPoint?: number | null
   interpolation?: (clip: Clip) => InterpolationView | null
+  /** Анализ клипа по ассету — полоски моментов на видеоклипах. */
+  clipAnalysis?: (assetId: string) => ClipAnalysis | undefined
+  /** Предпросмотр ops от ИИ: новые элементы — «призраки», изменённые — фиолетовый контур. */
+  highlight?: { created: ReadonlySet<string>; changed: ReadonlySet<string> } | null
 }
 
 export interface InterpolationView {
@@ -153,6 +167,8 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
         dim: dim || moving.has(item.id),
         ghost: false,
         locked: row.track.locked,
+        aiNew: s.highlight?.created.has(item.id) ?? false,
+        aiChanged: s.highlight?.changed.has(item.id) ?? false,
       })
     }
     if (row.lanes.length > 0) drawLanes(ctx, s, row, t0, t1)
@@ -410,6 +426,8 @@ interface ItemStyle {
   ghost: boolean
   invalid?: boolean
   locked: boolean
+  aiNew?: boolean
+  aiChanged?: boolean
 }
 
 function drawItem(
@@ -435,7 +453,7 @@ function drawItem(
   const base = item.type === 'effect' ? c.fx : asset?.kind === 'audio' ? c.audio : c.video
 
   ctx.save()
-  ctx.globalAlpha = st.ghost ? 0.75 : st.dim ? 0.4 : 1
+  ctx.globalAlpha = st.ghost ? 0.75 : st.dim ? 0.4 : st.aiNew ? 0.6 : 1
   ctx.beginPath()
   ctx.roundRect(vx0, y, w, h, 3)
   ctx.fillStyle = (isClip(item) && item.color) || base
@@ -481,6 +499,15 @@ function drawItem(
     ctx.fillStyle = interp?.state === 'failed' ? c.playhead : c.snap
     ctx.fillText(tag, vx1 - tw + 5, y + 8)
   }
+  if (isClip(item) && !st.ghost && asset?.kind === 'video') {
+    const moments = s.clipAnalysis?.(item.assetId)?.moments
+    if (moments?.length) {
+      for (const r of momentRects(item, start, top, v, moments)) {
+        ctx.fillStyle = `rgba(255, 216, 77, ${0.3 + 0.7 * r.score})`
+        ctx.fillRect(r.x0, r.y, r.x1 - r.x0, MOMENT_H)
+      }
+    }
+  }
   // ключевые кадры transform/opacity — ромбики у нижнего края клипа
   if (isClip(item) && !st.ghost) {
     const keyY = y + h - 6
@@ -495,11 +522,15 @@ function drawItem(
     }
   }
   ctx.restore()
-  ctx.lineWidth = st.selected ? 2 : 1
-  ctx.strokeStyle = st.invalid ? c.playhead : st.selected ? '#ffffff' : 'rgba(0,0,0,0.5)'
+  const ai = st.aiNew || st.aiChanged
+  ctx.globalAlpha = 1
+  ctx.lineWidth = st.selected || ai ? 2 : 1
+  ctx.strokeStyle = st.invalid ? c.playhead : ai ? c.accent : st.selected ? '#ffffff' : 'rgba(0,0,0,0.5)'
+  if (st.aiNew) ctx.setLineDash([5, 3])
   ctx.beginPath()
   ctx.roundRect(x0 + 0.5, y + 0.5, x1 - x0 - 1, h - 1, 3)
   ctx.stroke()
+  ctx.setLineDash([])
   ctx.restore()
 }
 

@@ -228,6 +228,7 @@ data/presets.json
 - `ai/style.py` + `ai/prompts/style_ref.md`: `section_density` / `dsp_stats` / `cut_density_map` (склейки против басов и долей ±0.08 с), Gemini Pro → `GeminiStyleResponse` (эффекты, переходы, ramp только из реестра/пресетов), `build_style` → `StylePreset` `ref_<asset>`; `PresetsRepo.save_style` / `list_styles` (`data/presets.json` → `styles`), `GET /presets/styles`. Без ключа — только плотность.
 - Тесты: `tests/test_ai_analysis.py`, `tests/test_ai_autoedit.py` (фикстурный проект + 3 ассета: стыки на маркерах ±1 кадр, без перекрытий, `sourceOut ≤ duration`, диапазон, `intensity = 0`, Gemini-план, ошибки запроса), `tests/test_ai_style.py`.
 - Контракт: v1.9 (`GET /presets/styles`, CONTRACT §8.2, §8.5–8.7).
+- Живой Gemini (Инт.7, PLAN.md §4.2): секции 17 с, анализ клипа ~20 с, автоэдит 40 с на 3 клипа + 40-секундный трек, стиль по референсу 14 с.
 
 ## Фаза 8 — Сборка
 

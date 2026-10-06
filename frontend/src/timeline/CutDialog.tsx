@@ -5,6 +5,7 @@ import { isClip } from '@/model/lookup'
 import { OpsError } from '@/model/ops/errors'
 import type { Clip, CutOrder, Project } from '@/shared/types.gen'
 import { useAssets } from '@/store/assets'
+import { useClipAnalysis } from '@/store/clipAnalysis'
 import { useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import styles from './CutDialog.module.css'
@@ -14,7 +15,7 @@ import { MarkerFilterFields } from './MarkerFilterFields'
 const ORDERS: { value: CutOrder; label: string; disabled?: boolean }[] = [
   { value: 'sequential', label: 'По порядку' },
   { value: 'random', label: 'Случайно' },
-  { value: 'bestMoments', label: 'Лучшие моменты (после ИИ-анализа)', disabled: true },
+  { value: 'bestMoments', label: 'Лучшие моменты (ИИ-анализ)' },
 ]
 
 interface FormState extends FilterForm {
@@ -69,6 +70,12 @@ function CutDialogBody() {
   const clips = useMemo(() => videoClips(project), [project])
   const videoTracks = project.tracks.filter((t) => t.kind === 'video')
   const op = useMemo(() => toOp(f), [f])
+  const analyses = useClipAnalysis((s) => s.byAsset)
+  const noMoments =
+    f.order === 'bestMoments' &&
+    !clips.some(
+      ({ clip }) => f.clipIds.includes(clip.id) && (analyses[clip.assetId]?.moments.length ?? 0) > 0,
+    )
 
   // предпросмотр: число слотов или причина, по которой нарезка невозможна
   const preview = useMemo(() => {
@@ -164,6 +171,11 @@ function CutDialogBody() {
                 </option>
               ))}
             </select>
+            {noMoments && (
+              <span className={styles.hint} data-testid="cut-no-moments">
+                Нет ИИ-анализа выбранных клипов — нарезка пойдёт по порядку
+              </span>
+            )}
             {f.order === 'random' && (
               <label>
                 seed

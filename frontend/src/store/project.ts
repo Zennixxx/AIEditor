@@ -45,6 +45,10 @@ export function configureProjectStore(ctx: ApplyContext): void {
   applyCtx = ctx
 }
 
+export function applyContext(): ApplyContext {
+  return applyCtx
+}
+
 export const useProject = create<ProjectState>()((set, get) => ({
   project: createEmptyProject(),
   history: hist.emptyHistory(),

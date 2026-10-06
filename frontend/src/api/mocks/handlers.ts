@@ -13,6 +13,7 @@ import type {
   MusicAnalysisParamsInput,
   Project,
   ProjectListItem,
+  StylePreset,
   Thumbs,
   Waveform,
   WsEvent,
@@ -32,6 +33,7 @@ const events = ws.link(WS_URL)
 const assets = new Map<string, Asset>(fixtures.assets.map((a) => [a.id, clone(a)]))
 const projects = new Map<string, Project>([[fixtures.project.id, clone(fixtures.project)]])
 const presets: EffectPreset[] = clone(fixtures.presets)
+const userStyles: StylePreset[] = []
 const jobs = new Map<string, Job>(fixtures.jobs.map((j) => [j.id, clone(j)]))
 const timers = new Map<string, ReturnType<typeof setInterval>>()
 /** Готовые анализы музыки по assetId (GET /analysis/music/{id}); демо-ассет фикстур считается проанализированным. */
@@ -483,10 +485,45 @@ export const handlers = [
     })
     return HttpResponse.json({ jobId: job.id })
   }),
+  http.post(url('/ai/analyze-music/:id'), ({ params }) => {
+    const assetId = String(params.id)
+    const base = musicAnalyses.get(assetId) ?? { ...clone(fixtures.musicAnalysis), assetId }
+    const job = runJob('aiMusic', {
+      assetId,
+      durationMs: 1500,
+      result: () => {
+        const enriched: MusicAnalysis = {
+          ...base,
+          sections: base.sections.map((s) => ({ ...s, description: `ИИ: ${s.label}` })),
+        }
+        musicAnalyses.set(assetId, enriched)
+        return enriched
+      },
+    })
+    return HttpResponse.json({ jobId: job.id })
+  }),
   http.post(url('/ai/command'), async () => {
     await delay(700)
     return HttpResponse.json(fixtures.opsResult)
   }),
+  http.post(url('/ai/style-from-reference/:id'), ({ params }) => {
+    const assetId = String(params.id)
+    const job = runJob('styleRef', {
+      assetId,
+      durationMs: 1500,
+      result: () => {
+        const style: StylePreset = {
+          ...clone(fixtures.styles[0]!),
+          id: `ref_${assetId.replace(/^ast_/, '')}`,
+          name: `Стиль: ${assets.get(assetId)?.name ?? assetId}`,
+        }
+        userStyles.splice(0, userStyles.length, ...userStyles.filter((x) => x.id !== style.id), style)
+        return style
+      },
+    })
+    return HttpResponse.json({ jobId: job.id })
+  }),
+  http.get(url('/presets/styles'), () => HttpResponse.json(userStyles)),
   http.post(url('/ai/auto-edit'), () => {
     const job = runJob('autoEdit', { durationMs: 5000, result: () => clone(fixtures.opsResult) })
     return HttpResponse.json({ jobId: job.id })
