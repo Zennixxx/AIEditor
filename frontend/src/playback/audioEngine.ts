@@ -183,7 +183,7 @@ export class AudioEngine {
 }
 
 /** Число или кривая (на длительность сегмента) → AudioParam; `scale` — множитель (скорость транспорта). */
-function applyParam(
+export function applyParam(
   param: AudioParam,
   value: number | number[],
   scale: number,
@@ -199,7 +199,7 @@ function applyParam(
   if (curve.length >= 2 && duration > 0) param.setValueCurveAtTime(curve, when, duration)
 }
 
-function reverseBuffer(ctx: BaseAudioContext, src: AudioBuffer): AudioBuffer {
+export function reverseBuffer(ctx: BaseAudioContext, src: AudioBuffer): AudioBuffer {
   const out = ctx.createBuffer(src.numberOfChannels, src.length, src.sampleRate)
   for (let c = 0; c < src.numberOfChannels; c++) {
     const data = src.getChannelData(c)

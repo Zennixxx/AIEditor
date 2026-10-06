@@ -16,7 +16,7 @@ from app.errors import install_error_handlers
 from app.jobs.events import EventHub
 from app.jobs.manager import RESOURCE_LIMITS, JobManager
 from app.media.pipeline import MediaService
-from app.routers import analysis, assets, debug, health, jobs, presets, projects, ws
+from app.routers import analysis, assets, debug, export, health, jobs, presets, projects, ws
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
 from app.storage.presets_repo import PresetsRepo
@@ -83,7 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=settings.aieditor_cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
+        expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Disposition"],
     )
     install_error_handlers(app)
 
@@ -94,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(analysis.router)
     api.include_router(projects.router)
     api.include_router(presets.router)
+    api.include_router(export.router)
     api.include_router(ws.router)
     if settings.aieditor_debug:
         api.include_router(debug.router)

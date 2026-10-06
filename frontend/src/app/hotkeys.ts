@@ -13,7 +13,8 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 export function handleHotkey(e: KeyboardEvent): boolean {
-  if (isTyping(e.target) || useUi.getState().cutDialogOpen) return false // модальный диалог владеет клавиатурой
+  const ui = useUi.getState()
+  if (isTyping(e.target) || ui.cutDialogOpen || ui.exportDialogOpen) return false // модальный диалог владеет клавиатурой
   const mod = e.ctrlKey || e.metaKey
   const key = e.key.toLowerCase()
   // e.code — чтобы работало в любой раскладке (Ctrl+K в русской = Ctrl+Л)
@@ -29,6 +30,7 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (mod && (code === 'KeyA' || key === 'a')) return run(actions.selectAll)
   if (mod && (code === 'KeyC' || key === 'c')) return run(actions.copySelection)
   if (mod && (code === 'KeyV' || key === 'v')) return run(actions.paste)
+  if (e.altKey && !mod && code === 'KeyX') return run(actions.clearInOut)
   if (mod || e.altKey) return false
 
   // транспорт (по e.code — в любой раскладке)
@@ -39,6 +41,8 @@ export function handleHotkey(e: KeyboardEvent): boolean {
   if (e.shiftKey && key === 'arrowleft') return run(() => actions.gotoMarker(-1))
   if (e.shiftKey && key === 'arrowright') return run(() => actions.gotoMarker(1))
   if (code === 'KeyM') return e.repeat || run(actions.addMarkerAtPlayhead)
+  if (code === 'KeyI') return run(actions.setInAtPlayhead)
+  if (code === 'KeyO') return run(actions.setOutAtPlayhead)
   if (!e.shiftKey && key === 'arrowleft') return run(() => player.step(-1))
   if (!e.shiftKey && key === 'arrowright') return run(() => player.step(1))
   if (key === 'home') return run(() => player.home())

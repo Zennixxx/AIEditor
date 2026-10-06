@@ -1,6 +1,7 @@
 import { IS_MOCK } from '@/api/config'
 import { useProject } from '@/store/project'
 import { openProject } from '@/store/projectIo'
+import { openExportDialog } from './actions'
 import { BackendStatus } from './BackendStatus'
 import styles from './TopBar.module.css'
 
@@ -36,6 +37,14 @@ export function TopBar() {
           </span>
         )}
       </div>
+      <button
+        className={styles.export}
+        onClick={openExportDialog}
+        title="Экспорт видео и скрипта After Effects (I / O — диапазон на таймлайне)"
+        data-testid="open-export"
+      >
+        Экспорт
+      </button>
       <BackendStatus />
     </header>
   )

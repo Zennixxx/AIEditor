@@ -103,6 +103,8 @@ export interface Scene {
   keys: readonly KeyView[]
   media: MediaSource
   palette: Palette
+  inPoint?: number | null
+  outPoint?: number | null
 }
 
 const FONT = '11px "Inter Variable", Inter, system-ui, sans-serif'
@@ -246,6 +248,7 @@ function drawRuler(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.fillRect(0, 0, v.width, RULER_H)
   ctx.fillStyle = c.border
   ctx.fillRect(0, RULER_H - 1, v.width, 1)
+  drawInOut(ctx, s)
   const ticks = rulerTicks(xToTime(0, v), xToTime(v.width, v), v.pxPerSec, s.project.fps)
   ctx.fillStyle = c.tick
   for (const tick of ticks) {
@@ -261,6 +264,28 @@ function drawRuler(ctx: CanvasRenderingContext2D, s: Scene): void {
 }
 
 /** Полоса секций над линейкой: цветные плашки с подписью (секции композиции и музыки, в timeline time). */
+function drawInOut(ctx: CanvasRenderingContext2D, s: Scene): void {
+  const inP = s.inPoint ?? null
+  const outP = s.outPoint ?? null
+  if (inP === null && outP === null) return
+  const { view: v, palette: c } = s
+  const x0 = inP === null ? timeToX(0, v) : timeToX(inP, v)
+  const x1 = outP === null ? timeToX(Math.max(s.project.duration, inP ?? 0), v) : timeToX(outP, v)
+  const top = SECTION_H
+  const h = RULER_H - SECTION_H - 1
+  ctx.fillStyle = 'rgba(139,108,255,0.22)'
+  ctx.fillRect(x0, top, Math.max(0, x1 - x0), h)
+  ctx.fillStyle = c.accent
+  if (inP !== null) {
+    ctx.fillRect(Math.round(x0), top, 2, h)
+    ctx.fillRect(Math.round(x0), top, 6, 2)
+  }
+  if (outP !== null) {
+    ctx.fillRect(Math.round(x1) - 2, top, 2, h)
+    ctx.fillRect(Math.round(x1) - 6, top, 6, 2)
+  }
+}
+
 function drawSections(ctx: CanvasRenderingContext2D, s: Scene): void {
   const { view: v, palette: c } = s
   ctx.save()

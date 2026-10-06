@@ -27,6 +27,7 @@ import {
   toggleAnimation,
   type AnimProp,
 } from '@/model/keyframes'
+import { player } from '@/playback/player'
 import { findPreset } from '@/store/presets'
 import { OpsError } from '@/model/ops/errors'
 import { useProject } from '@/store/project'
@@ -378,4 +379,22 @@ export function gotoKey(clipId: string, dir: 1 | -1, prop?: AnimProp): void {
   const times = prop ? keyTimes(clipAnimatable(clip, prop)) : clipKeyTimes(clip)
   const t = neighborKey(times, ui().playhead - clip.start, dir)
   if (t !== null) ui().setPlayhead(clip.start + t)
+}
+
+export function setInAtPlayhead(): void {
+  ui().setInPoint(ui().playhead)
+}
+
+export function setOutAtPlayhead(): void {
+  ui().setOutPoint(ui().playhead)
+}
+
+export function clearInOut(): void {
+  ui().setInPoint(null)
+  ui().setOutPoint(null)
+}
+
+export function openExportDialog(): void {
+  player.pause()
+  ui().setExportDialogOpen(true)
 }

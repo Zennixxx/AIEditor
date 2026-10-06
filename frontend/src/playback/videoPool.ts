@@ -5,6 +5,7 @@ import { assetsApi } from '@/api/assets'
 import type { Clip, Project } from '@/shared/types.gen'
 import { canPlayNatively, correctDrift, onFrame } from './drift'
 import { entrySource, upcomingVideoClips, videoLayersAt, type AssetLookup, type Layer } from './timing'
+import { FRAME_EPS } from '@/shared/time'
 
 export const PRELOAD_AHEAD = 2
 
@@ -143,7 +144,7 @@ function clampToMedia(el: HTMLVideoElement, src: number): number {
 }
 
 function seek(el: HTMLVideoElement, t: number): void {
-  el.currentTime = Math.max(0, t)
+  el.currentTime = Math.max(0, t) + FRAME_EPS
 }
 
 /** Кадр видео готов к отрисовке и показывает `src` (на паузе) — иначе превью берёт кадр из thumbs. */

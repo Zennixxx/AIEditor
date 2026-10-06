@@ -24,7 +24,7 @@ function isErrorBody(x: unknown): x is { error: ApiErrorBody } {
   )
 }
 
-async function request<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+async function send(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
   const init: RequestInit = { method, signal }
   if (body instanceof FormData) {
     init.body = body
@@ -33,23 +33,40 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
     init.headers = { 'Content-Type': 'application/json' }
   }
 
-  let res: Response
   try {
-    res = await fetch(apiUrl(path), init)
+    return await fetch(apiUrl(path), init)
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e
     throw new ApiError(0, 'network_error', 'Бэкенд недоступен')
   }
+}
 
+function errorOf(res: Response, data: unknown): ApiError {
+  if (isErrorBody(data))
+    return new ApiError(res.status, data.error.code, data.error.message, data.error.details)
+  return new ApiError(res.status, 'http_error', `HTTP ${res.status}`)
+}
+
+async function request<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await send(method, path, body, signal)
   const text = await res.text()
   const data: unknown = text ? safeJson(text) : undefined
-  if (!res.ok) {
-    if (isErrorBody(data)) {
-      throw new ApiError(res.status, data.error.code, data.error.message, data.error.details)
-    }
-    throw new ApiError(res.status, 'http_error', `HTTP ${res.status}`)
-  }
+  if (!res.ok) throw errorOf(res, data)
   return data as T
+}
+
+async function requestBlob(
+  method: Method,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const res = await send(method, path, body, signal)
+  if (!res.ok) {
+    const text = await res.text()
+    throw errorOf(res, text ? safeJson(text) : undefined)
+  }
+  return res.blob()
 }
 
 function safeJson(text: string): unknown {
@@ -72,4 +89,5 @@ export const api = {
   post: <T>(path: string, body?: unknown, signal?: AbortSignal) => request<T>('POST', path, body, signal),
   put: <T>(path: string, body?: unknown, signal?: AbortSignal) => request<T>('PUT', path, body, signal),
   del: <T>(path: string, signal?: AbortSignal) => request<T>('DELETE', path, undefined, signal),
+  postBlob: (path: string, body?: unknown, signal?: AbortSignal) => requestBlob('POST', path, body, signal),
 }

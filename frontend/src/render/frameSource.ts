@@ -15,6 +15,7 @@ export interface FrameImage {
   crop?: { x: number; y: number; w: number; h: number }
   /** Содержимое меняется от кадра к кадру (видео) — загружать в текстуру каждый раз. */
   dynamic: boolean
+  key?: unknown
 }
 
 /** Кадр для слоя плана или null (ещё не загружен — слой пропускается). */

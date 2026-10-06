@@ -15,3 +15,5 @@ export function formatTimecode(t: number, fps: number): string {
   const core = `${pad(m)}:${pad(s)}:${pad(frames)}`
   return h > 0 ? `${h}:${core}` : core
 }
+
+export const FRAME_EPS = 1e-4

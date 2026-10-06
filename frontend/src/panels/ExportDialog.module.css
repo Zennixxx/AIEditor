@@ -1,0 +1,85 @@
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.fields:disabled {
+  opacity: 0.6;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.name {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 3px 6px;
+  user-select: text;
+}
+
+.name:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 32px;
+  justify-content: center;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.ok {
+  color: var(--text);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.aeStatus {
+  color: var(--text-dim);
+  font-size: 11px;
+}

@@ -77,19 +77,22 @@ export class Renderer {
   private readonly blitProgram: Program
   /** Программы проходов эффекта; null — у эффекта нет шейдера или он не скомпилировался. */
   private readonly effectPrograms = new Map<string, { stage: EffectStage; program: Program }[] | null>()
-  private readonly sources = new Map<TexImageSource, SourceTexture>()
+  private readonly sources = new Map<unknown, SourceTexture>()
   private readonly vao: WebGLVertexArrayObject
   private tick = 0
 
   /** Бросает, если WebGL2 недоступен. */
-  constructor(readonly canvas: HTMLCanvasElement | OffscreenCanvas) {
+  constructor(
+    readonly canvas: HTMLCanvasElement | OffscreenCanvas,
+    options: { preserveDrawingBuffer?: boolean } = {},
+  ) {
     const gl = canvas.getContext('webgl2', {
       alpha: false,
       antialias: false,
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
-      preserveDrawingBuffer: false,
+      preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
     }) as WebGL2RenderingContext | null
     if (!gl) throw new Error('WebGL2 недоступен')
     this.gl = gl
@@ -263,10 +266,11 @@ export class Renderer {
 
   private sourceTexture(image: FrameImage): WebGLTexture {
     const gl = this.gl
-    let entry = this.sources.get(image.source)
+    const key = image.key ?? image.source
+    let entry = this.sources.get(key)
     if (!entry) {
       entry = { tex: createTexture(gl), lastUsed: this.tick, uploaded: false }
-      this.sources.set(image.source, entry)
+      this.sources.set(key, entry)
     }
     entry.lastUsed = this.tick
     if (image.dynamic || !entry.uploaded) {
@@ -278,10 +282,10 @@ export class Renderer {
   }
 
   private collectSources(): void {
-    for (const [source, entry] of this.sources) {
+    for (const [key, entry] of this.sources) {
       if (this.tick - entry.lastUsed > TEXTURE_TTL) {
         this.gl.deleteTexture(entry.tex)
-        this.sources.delete(source)
+        this.sources.delete(key)
       }
     }
   }

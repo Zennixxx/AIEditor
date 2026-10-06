@@ -420,7 +420,7 @@ interface EffectDef {
 | POST | `/ai/command` | `AICommandRequest` | `OpsResult` |
 | POST | `/ai/auto-edit` | `AutoEditRequest` | `JobRef` → `OpsResult` |
 | POST | `/ai/style-from-reference/{id}` | — | `JobRef` → `StylePreset` |
-| POST | `/export/ae-jsx` | `Project` | файл `.jsx` |
+| POST | `/export/ae-jsx` | `Project` | скрипт ExtendScript для After Effects: `text/javascript; charset=utf-8`, `Content-Disposition: attachment` (§8.3) |
 | GET | `/jobs/{id}` | — | `Job` |
 | DELETE | `/jobs/{id}` | — | `Job` (canceled) |
 | WS | `/ws` | — | поток `WsEvent` |
@@ -511,6 +511,18 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 | любой | 422 | `validation_error` | ошибки валидации |
 
 Ошибка задачи ffmpeg: `job.error.code = "ffmpeg_failed"`.
+
+### 8.3 Экспорт
+
+**MP4 (в браузере, без бэка).** Кадр `i` выхода — timeline time `T = start + i / fps` (`start` — начало диапазона: 0 или in-точка); план и шейдеры — те же, что в превью (§2.1, порядок рендера — инвариант 7). Источник кадра клипа — первый декодируемый из: оригинал интерполированного ассета (`clip.interpolatedAssetId`, §5.3), `/original` (если `browserDecodable`), `/mezzanine.mp4`, `/original`, `/proxy.mp4`; берётся последний кадр с PTS ≤ `src(τ)`. Звук — сведение всех не muted дорожек (solo — состояние сессии, в экспорт не попадает) с громкостями дорожек и клипов, скоростью/`reverse`/`timeRemap` как при воспроизведении; 48 кГц стерео, AAC 320 кбит/с (если браузер не кодирует AAC — Opus). Контейнер MP4.
+
+**After Effects (`POST /export/ae-jsx`).** Тело — `Project`; ответ — самодостаточный ASCII-скрипт (`var DATA = {…};` + интерпретатор), запуск: File → Scripts → Run Script File. Создаётся композиция (`fps`, размер, длительность, фон) и папка с импортированными оригиналами (`asset.path`; нет файла — серый solid «НЕТ ФАЙЛА» и предупреждение в конце). Слои добавляются в порядке `project.tracks` снизу вверх, внутри дорожки — по `start`:
+- клип: `inPoint = start`, `outPoint = start + duration`; при `speed = 1` без `reverse`/`timeRemap` — `startTime = start − sourceIn`, иначе time remap: при постоянной скорости — два ключа, с `timeRemap` — ключ на каждый кадр проекта, значение `src(τ)` по §5.1;
+- transform: якорь — `anchorX/anchorY`, позиция (разделённые X/Y) и масштаб пересчитываются из нормализованных координат и cover-масштаба (§1), поворот — градусы, непрозрачность — %; ключи `Animatable` переносятся с интерполяцией: `linear`, `hold`, cubic-bezier → bezier с temporal ease (скорость и влияние из контрольных точек);
+- громкость клипа × громкость дорожки → Audio Levels в дБ (ключи — линейно по дБ); muted → звук выключен, hidden → слой выключен, locked → слой заблокирован; `blendMode` — режим наложения;
+- маркеры клипа (source time → время композиции через ту же функцию времени), секции клипа (маркер с длительностью `section: <label> energy=…`) и эффекты клипа (маркер с длительностью `fx: <id> (<имя>) <параметр>=<значение>… | env a/h/d <curve>`, `[off]` у выключенных) — маркеры слоя;
+- fx-дорожка с эффектами → adjustment-слой «FX: <имя дорожки>» на всю композицию с маркерами эффектов; шейдеры не переносятся;
+- маркеры и секции проекта — маркеры композиции.
 
 ## 9. Сохранение проекта
 

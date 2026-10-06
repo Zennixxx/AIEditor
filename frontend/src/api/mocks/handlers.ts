@@ -306,13 +306,27 @@ export const handlers = [
     // m4a в моке — на деле WAV: decodeAudioData определяет формат по содержимому
     return rangeResponse(new Uint8Array(encodeWav(mockAudio(a.id, a.duration))), request, 'audio/wav')
   }),
-  http.get(url('/assets/:id/original'), async ({ params }) => {
+  http.get(url('/assets/:id/original'), async ({ params, request }) => {
     const a = assets.get(String(params.id))
     if (!a) return notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+    if (a.kind === 'video') {
+      const video = await mockProxy(a.id, a.name, a.duration)
+      return video
+        ? rangeResponse(new Uint8Array(await video.arrayBuffer()), request, video.type)
+        : notFound('file_not_found', 'Оригинал недоступен в моке')
+    }
     const blob = a.kind === 'image' ? await renderStill(a) : null
     return blob
       ? new HttpResponse(blob, { headers: { 'Content-Type': 'image/png' } })
       : notFound('file_not_found', 'Оригинал недоступен в моке')
+  }),
+  http.get(url('/assets/:id/mezzanine.mp4'), async ({ params, request }) => {
+    const a = assets.get(String(params.id))
+    if (!a) return notFound('asset_not_found', `Ассет ${String(params.id)} не найден`)
+    const video = a.kind === 'video' && a.derived.mezzanine ? await mockProxy(a.id, a.name, a.duration) : null
+    return video
+      ? rangeResponse(new Uint8Array(await video.arrayBuffer()), request, video.type)
+      : notFound('file_not_found', 'Mezzanine не готов')
   }),
   http.get(url('/assets/:id/thumbs.json'), ({ params }) => {
     const a = assets.get(String(params.id))
@@ -479,6 +493,19 @@ export const handlers = [
   }),
 
   // --- задачи ---
+  http.post(url('/export/ae-jsx'), async ({ request }) => {
+    const project = (await request.json()) as Project
+    const script = `// AIEditor -> After Effects (mock)
+var DATA = ${JSON.stringify({ comp: { name: project.name } })};
+`
+    return new HttpResponse(script, {
+      headers: {
+        'Content-Type': 'text/javascript; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="project.jsx"',
+      },
+    })
+  }),
+
   http.get(url('/jobs/:id'), ({ params }) => {
     const j = jobs.get(String(params.id))
     return j ? HttpResponse.json(j) : notFound('job_not_found', `Задача ${String(params.id)} не найдена`)

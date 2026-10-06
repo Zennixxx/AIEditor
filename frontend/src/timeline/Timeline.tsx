@@ -106,6 +106,8 @@ export function Timeline() {
         keys: controller.keys(),
         media,
         palette,
+        inPoint: ui.inPoint,
+        outPoint: ui.outPoint,
       })
     }
     const redraw = () => {

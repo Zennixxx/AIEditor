@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { EffectsLibrary } from '@/panels/EffectsLibrary'
+import { ExportDialog } from '@/panels/ExportDialog'
 import { Inspector } from '@/panels/Inspector'
 import { MediaBin } from '@/panels/MediaBin'
 import { Preview } from '@/panels/Preview'
@@ -38,6 +39,7 @@ export function App() {
       </main>
       <CutDialog />
       <FxDialog />
+      <ExportDialog />
     </div>
   )
 }

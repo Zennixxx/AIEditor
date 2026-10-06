@@ -52,6 +52,9 @@ interface UiState {
   propLanes: LaneProp[]
   /** Выделенные ключевые кадры на дорожках свойств. */
   keySelection: KeyRef[]
+  inPoint: number | null
+  outPoint: number | null
+  exportDialogOpen: boolean
 
   select: (ids: string[]) => void
   selectMarkers: (ids: string[]) => void
@@ -75,6 +78,9 @@ interface UiState {
   toggleLane: (lane: LaneProp) => void
   setLanes: (lanes: readonly LaneProp[]) => void
   selectKeys: (refs: KeyRef[]) => void
+  setInPoint: (t: number | null) => void
+  setOutPoint: (t: number | null) => void
+  setExportDialogOpen: (open: boolean) => void
 }
 
 export function clampZoom(pxPerSec: number): number {
@@ -105,6 +111,9 @@ export const useUi = create<UiState>()((set, get) => ({
   inspectedEffectId: null,
   propLanes: [],
   keySelection: [],
+  inPoint: null,
+  outPoint: null,
+  exportDialogOpen: false,
 
   select: (ids) => set({ selection: [...new Set(ids)] }),
   selectMarkers: (ids) => set({ markerSelection: [...new Set(ids)] }),
@@ -137,4 +146,19 @@ export const useUi = create<UiState>()((set, get) => ({
   },
   setLanes: (lanes) => set({ propLanes: LANE_PROPS.filter((l) => lanes.includes(l)) }),
   selectKeys: (keySelection) => set({ keySelection }),
+  setInPoint: (t) => {
+    const out = get().outPoint
+    set({
+      inPoint: t === null ? null : Math.max(0, t),
+      ...(t !== null && out !== null && out <= t ? { outPoint: null } : {}),
+    })
+  },
+  setOutPoint: (t) => {
+    const inP = get().inPoint
+    set({
+      outPoint: t === null ? null : Math.max(0, t),
+      ...(t !== null && inP !== null && inP >= t ? { inPoint: null } : {}),
+    })
+  },
+  setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
 }))

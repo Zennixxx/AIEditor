@@ -181,13 +181,15 @@ frontend/src/
 
 ## Фаза 6 — Экспорт
 
-- [ ] Диалог: разрешение (проект / 720p / 4K), fps, кодек (AVC; HEVC если `VideoEncoder.isConfigSupported`), битрейт (CBR/VBR), диапазон (всё / in-out), имя файла.
-- [ ] Офлайн-рендер: для каждого кадра `T = i / fps` — те же шаги, что в превью, но источники — оригиналы (`/original` через Mediabunny `UrlSource`, либо `mezzanine` если `!browserDecodable`), интерполированные ассеты — в полном разрешении.
-- [ ] `VideoEncoder` → Mediabunny `Output(Mp4OutputFormat)`; бэкпрешер по `encodeQueueSize`.
-- [ ] Аудио: `OfflineAudioContext` сводит все аудио/звук видеоклипов с громкостями и ключами → `AudioEncoder` AAC 320k.
-- [ ] Прогресс, ETA, отмена; сохранение через File System Access API (`showSaveFilePicker`), fallback — скачивание.
-- [ ] Тест: сравнение кадров экспорта и превью (Playwright, PSNR > 40 dB) на фикстурном проекте.
-- [ ] Кнопка «Экспорт в After Effects (.jsx)» → `POST /export/ae-jsx`.
+- [x] Диалог: разрешение (проект / 720p / 4K), fps, кодек (AVC; HEVC если `VideoEncoder.isConfigSupported`), битрейт (CBR/VBR), диапазон (всё / in-out), имя файла. _(`panels/ExportDialog.tsx`, кнопка «Экспорт» в верхней панели; разрешение — по короткой стороне (+1080p), размеры чётные; кодеки AVC/HEVC/VP9/AV1 — недоступные браузеру выключены, выбирается первый доступный; битрейт по умолчанию — 16 Мбит/с × (пиксели·fps) относительно 1080p30; in/out — `I`/`O` на таймлайне, `Alt+X` — сбросить, диапазон подсвечен на линейке; чистые функции — `export/settings.ts`)_
+- [x] Офлайн-рендер: для каждого кадра `T = i / fps` — те же шаги, что в превью, но источники — оригиналы (`/original` через Mediabunny `UrlSource`, либо `mezzanine` если `!browserDecodable`), интерполированные ассеты — в полном разрешении. _(`export/exporter.ts` — `buildFramePlan` + тот же `Renderer` на `OffscreenCanvas`; `export/sources.ts: ExportFrames` — источник по CONTRACT §8.3 (`export/sourceUrls.ts`), курсор кадров на клип `export/frameCursor.ts` (последовательный проход `VideoSampleSink.samples`, перезапуск при переходе назад или скачке > 3 с, кадр с PTS ≤ src + 0.1 мс); поворот и неквадратный пиксель — через 2D canvas, картинки — `ImageBitmap`; текстуры кэшируются по ключу клипа — `FrameImage.key`)_
+- [x] `VideoEncoder` → Mediabunny `Output(Mp4OutputFormat)`; бэкпрешер по `encodeQueueSize`. _(`EncodedVideoPacketSource`, ключевой кадр каждые 2 с, очередь ≤ 8 (событие `dequeue`), пакеты пишутся цепочкой с ожиданием; перед первым кадром — 12 «разогревающих» копий, их пакеты отбрасываются, а PTS настоящих сдвигаются к 0: без разогрева у OpenH264 первые кадры шли с PSNR ~33 дБ; отрицательные PTS аппаратный энкодер (Media Foundation) не переваривает — зависал на 3-м кадре)_
+- [x] Аудио: `OfflineAudioContext` сводит все аудио/звук видеоклипов с громкостями и ключами → `AudioEncoder` AAC 320k. _(`export/audioMix.ts`: `planMix` из `playback/audioPlan` (скорость, reverse, timeRemap, громкости — как в плеере; solo не учитывается), 48 кГц стерео; кодирование — Mediabunny `AudioBufferSource` кусками по 1 с вперемешку с видео; AAC 320 → 256 → 192 кбит/с → Opus — что первое кодирует браузер)_
+- [x] Прогресс, ETA, отмена; сохранение через File System Access API (`showSaveFilePicker`), fallback — скачивание. _(файл из пикера пишется потоком (`StreamTarget`, без fast start), без пикера — в память (`fastStart: 'in-memory'`) и скачивание; отмена — `AbortController`, недописанный файл удаляется)_
+- [x] Тест: сравнение кадров экспорта и превью (Playwright, PSNR > 40 dB) на фикстурном проекте. _(`e2e/export.spec.ts`: демо-проект, I/O 30–31 с, 720p, 100 Мбит/с (VP9, если есть): рендер экспорта до кодирования совпадает с превью бит в бит, кадр из файла — PSNR > 40 дБ по яркости на 10 кадрах; ещё тесты — `.jsx`, отмена, запись в файл из пикера (OPFS). Отладочные хуки — `window.__aieditor.exportDebug`)_
+- [x] Кнопка «Экспорт в After Effects (.jsx)» → `POST /export/ae-jsx`. _(в диалоге экспорта; `api/export.ts`, `api.postBlob`; сохранение — через пикер или скачиванием)_
+
+**6 готово** (2026-10-06): диалог экспорта, офлайн-рендер тем же рендерером, WebCodecs + Mediabunny, сведение звука, прогресс/ETA/отмена, File System Access, `.jsx` для After Effects. typecheck, lint, Vitest (299), Playwright (19, новый `export.spec`). Проверено на реальном бэке (PLAN §4.2 «Инт.6»). Контракт: v1.6 (только документация, CONTRACT §8.3). Попутно: seek `<video>` в превью — на 0.1 мс позже цели (`FRAME_EPS`), чтобы на границе кадра превью и экспорт брали один кадр.
 
 ## Фаза 7 — ИИ UI
 
