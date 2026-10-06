@@ -230,9 +230,9 @@ data/presets.json
 - Контракт: v1.9 (`GET /presets/styles`, CONTRACT §8.2, §8.5–8.7).
 - Живой Gemini (Инт.7, PLAN.md §4.2): секции 17 с, анализ клипа ~20 с, автоэдит 40 с на 3 клипа + 40-секундный трек, стиль по референсу 14 с.
 
-## Фаза 8 — Сборка
+## Фаза 8 — Полировка
 
-- [ ] PyInstaller onedir `aieditor-backend.exe` (+ tools/bin), запуск с `--port`, `--data-dir`; graceful shutdown по сигналу от Tauri.
-- [ ] `POST /settings/gemini-key` — сохранить ключ в Windows Credential Manager (`keyring`), не в файл.
+Десктоп-сборки нет (DECISIONS #13): бэк запускается через `npm run dev` / uvicorn, каталог данных и ключ Gemini — из `.env`.
+
 - [ ] Очистка кэша: `DELETE /cache?older_than_days=30` (прокси/интерполяции неиспользуемых ассетов).
 - [ ] `/health` расширить: версия GPU/Vulkan для RIFE, свободное место на диске.
