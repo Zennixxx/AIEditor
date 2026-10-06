@@ -21,6 +21,23 @@ def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--gemini", action="store_true", help="живые тесты с Gemini API (нужен GEMINI_API_KEY)")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "gemini: живой запрос к Gemini, только с --gemini")
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    if config.getoption("--gemini"):
+        return
+    skip = pytest.mark.skip(reason="живой Gemini — только с --gemini")
+    for item in items:
+        if "gemini" in item.keywords:
+            item.add_marker(skip)
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(aieditor_data_dir=tmp_path / "data", aieditor_debug=True, gemini_api_key="")

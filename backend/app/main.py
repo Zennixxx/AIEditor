@@ -9,6 +9,8 @@ from logging.handlers import RotatingFileHandler
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.client import create_llm
+from app.ai.command import CopilotService, load_ramp_presets
 from app.audio.analysis import MusicAnalysisService
 from app.config import VERSION, Settings, ffmpeg_bin, get_settings, rife_bin
 from app.effects.registry import load_registry
@@ -16,7 +18,7 @@ from app.errors import install_error_handlers
 from app.jobs.events import EventHub
 from app.jobs.manager import RESOURCE_LIMITS, JobManager
 from app.media.pipeline import MediaService
-from app.routers import analysis, assets, debug, export, health, jobs, presets, projects, ws
+from app.routers import ai, analysis, assets, debug, export, health, jobs, presets, projects, ws
 from app.storage.assets_repo import AssetsRepo
 from app.storage.paths import DataPaths
 from app.storage.presets_repo import PresetsRepo
@@ -58,6 +60,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.projects = ProjectsRepo(paths)
         app.state.registry = load_registry(settings.aieditor_shared_dir)
         app.state.presets = PresetsRepo(paths)
+        app.state.llm = create_llm(settings, paths)
+        app.state.copilot = CopilotService(
+            app.state.registry, load_ramp_presets(settings.aieditor_shared_dir), app.state.assets.get
+        )
         app.state.analysis = MusicAnalysisService(settings, paths, app.state.assets, app.state.jobs)
         app.state.clip_analysis = ClipAnalysisService(settings, paths, app.state.assets, app.state.jobs)
         app.state.interpolation = InterpolationService(settings, paths, app.state.assets, app.state.jobs, hub)
@@ -97,6 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(projects.router)
     api.include_router(presets.router)
     api.include_router(export.router)
+    api.include_router(ai.router)
     api.include_router(ws.router)
     if settings.aieditor_debug:
         api.include_router(debug.router)
