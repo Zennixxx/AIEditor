@@ -40,7 +40,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(aieditor_data_dir=tmp_path / "data", aieditor_debug=True, gemini_api_key="")
+    return Settings(
+        aieditor_data_dir=tmp_path / "data", aieditor_debug=True, gemini_api_key="", aieditor_probe_gpu=False
+    )
 
 
 @pytest.fixture

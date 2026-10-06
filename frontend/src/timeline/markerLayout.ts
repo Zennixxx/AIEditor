@@ -49,6 +49,7 @@ export function layoutMarkers(
   view: View,
   vis: MarkerVisibility,
   selected: ReadonlySet<string>,
+  all: readonly TimelineMarker[] = timelineMarkers(project, vis),
 ): MarkerView[] {
   const margin = 12
   const clipRows = new Map<string, TrackRow>()
@@ -56,7 +57,7 @@ export function layoutMarkers(
     for (const item of row.track.items)
       if (isClip(item) && item.markers.length > 0) clipRows.set(item.id, row)
   }
-  const inView: TimelineMarker[] = timelineMarkers(project, vis).filter((m) => {
+  const inView: TimelineMarker[] = all.filter((m) => {
     const x = timeToX(m.t, view)
     return x >= -margin && x <= view.width + margin
   })

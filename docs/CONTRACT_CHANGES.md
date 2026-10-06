@@ -20,6 +20,18 @@ _пусто_
 
 ## Applied
 
+### v1.10 — фаза 8: полировка (совместимо)
+- Дата: 2026-10-06
+- Автор: единый агент
+- Что:
+  - `Health.disk` `{path, free, total}` (обязательное) и `Health.gpus?: string[]` — Vulkan-устройства RIFE;
+  - `DELETE /cache?olderThanDays=N` → `CacheCleanupResult` (новый CONTRACT §8.8);
+  - `DELETE /projects/{id}` → 204;
+  - `PUT /projects/{id}` с `revision: 0` создаёт несуществующий проект (новые проекты создаёт фронт, CONTRACT §9); 404 `project_not_found` — только при `revision ≠ 0`;
+  - CONTRACT §9: автосейв и при уходе со вкладки, ответ `PUT` — только `revision`/`updatedAt`;
+  - CORS: `tauri://localhost` убран (десктоп-сборки нет, DECISIONS #13), добавлен `http://127.0.0.1:5173`.
+- Совместимость: да, `schemaVersion` остаётся 1. Фикстура `health.json` дополнена `disk`/`gpus`.
+
 ### v1.9 — фаза 7: ИИ-анализ, автоэдит, стиль по референсу (совместимо)
 - Дата: 2026-10-06
 - Автор: единый агент

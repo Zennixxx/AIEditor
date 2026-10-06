@@ -5,7 +5,14 @@ import { planAssetDrop, planMove, planTrim, pickTrackForAsset, type ItemMove } f
 import type { EffectDropTarget } from '@/model/effects'
 import { planShiftKeys, sameKey, shiftedRefs, type KeyRef } from '@/model/clipKeys'
 import { isClip } from '@/model/lookup'
-import { isMarkerVisible, markerOrigins, planMoveMarkers, type MarkerOrigin } from '@/model/markers'
+import {
+  isMarkerVisible,
+  markerOrigins,
+  planMoveMarkers,
+  timelineMarkers,
+  type MarkerOrigin,
+  type TimelineMarker,
+} from '@/model/markers'
 import { timelineSections, type TimelineSection } from '@/model/sections'
 import { isTransition, nearestCut, planTransitions } from '@/model/transitions'
 import { presetSpan } from '@/model/presets'
@@ -126,6 +133,7 @@ export class TimelineController {
   private keyCache: { key: readonly unknown[]; value: KeyView[] } | null = null
   private dropTargets: SnapTarget[] | null = null
   private markerCache: { key: readonly unknown[]; value: MarkerView[] } | null = null
+  private timelineMarkerCache: { key: readonly unknown[]; value: TimelineMarker[] } | null = null
   private sectionCache: { project: Project; value: TimelineSection[] } | null = null
 
   constructor(private readonly host: ControllerHost) {}
@@ -195,9 +203,40 @@ export class TimelineController {
     ]
     const c = this.markerCache
     if (c && c.key.every((k, i) => k === key[i])) return c.value
-    const value = layoutMarkers(project, this.rows(), v, markerVisibility, new Set(markerSelection))
+    const value = this.markersFor(v)
     this.markerCache = { key, value }
     return value
+  }
+
+  /** Маркеры в timeline time после фильтра видимости (кэш по проекту и фильтру — не зависит от скролла). */
+  private timelineMarkers(): TimelineMarker[] {
+    const project = displayedProject()
+    const vis = useUi.getState().markerVisibility
+    const c = this.timelineMarkerCache
+    if (c && c.key[0] === project && c.key[1] === vis) return c.value
+    const value = timelineMarkers(project, vis)
+    this.timelineMarkerCache = { key: [project, vis], value }
+    return value
+  }
+
+  /** Маркеры для произвольного вида (слой дорожек шире экрана), без кэша. */
+  markersFor(v: View): MarkerView[] {
+    const { markerVisibility, markerSelection } = useUi.getState()
+    return layoutMarkers(
+      displayedProject(),
+      this.rows(),
+      v,
+      markerVisibility,
+      new Set(markerSelection),
+      this.timelineMarkers(),
+    )
+  }
+
+  /** Ключевые кадры для произвольного вида, без кэша. */
+  keysFor(v: View): KeyView[] {
+    const rows = this.rows()
+    if (!rows.some((r) => r.lanes.length > 0)) return []
+    return layoutKeys(rows, v, useUi.getState().keySelection)
   }
 
   /** Секции композиции и музыки в timeline time (кэш по проекту). */

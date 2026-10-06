@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from concurrent.futures import ProcessPoolExecutor
@@ -22,12 +24,14 @@ from app.errors import install_error_handlers
 from app.jobs.events import EventHub
 from app.jobs.manager import RESOURCE_LIMITS, JobManager
 from app.media.pipeline import MediaService
-from app.routers import ai, analysis, assets, debug, export, health, jobs, presets, projects, ws
+from app.routers import ai, analysis, assets, cache, debug, export, health, jobs, presets, projects, ws
 from app.storage.assets_repo import AssetsRepo
+from app.storage.cache_cleanup import CacheCleaner
 from app.storage.paths import DataPaths
 from app.storage.presets_repo import PresetsRepo
 from app.storage.projects_repo import ProjectsRepo
 from app.video.analysis import ClipAnalysisService
+from app.video.gpu import probe_rife_gpus
 from app.video.interpolate import InterpolationService
 
 log = logging.getLogger("app")
@@ -43,6 +47,14 @@ def _setup_logging(paths: DataPaths) -> None:
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     root.addHandler(handler)
     root.setLevel(logging.INFO)
+
+
+async def _probe_gpus(app: FastAPI, settings: Settings) -> None:
+    rife = rife_bin(settings)
+    if rife is None or not settings.aieditor_probe_gpu:
+        return
+    app.state.gpus = await asyncio.to_thread(probe_rife_gpus, rife)
+    log.info("RIFE Vulkan devices: %s", app.state.gpus)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -62,6 +74,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.assets = AssetsRepo(paths)
         app.state.assets.load_all()
         app.state.projects = ProjectsRepo(paths)
+        app.state.cache = CacheCleaner(paths, app.state.assets, app.state.projects, app.state.jobs)
+        app.state.gpus = None
         app.state.registry = load_registry(settings.aieditor_shared_dir)
         app.state.presets = PresetsRepo(paths)
         app.state.llm = create_llm(settings, paths)
@@ -103,9 +117,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             rife_bin(settings),
         )
         await app.state.media.resume()
+        gpu_probe = asyncio.create_task(_probe_gpus(app, settings))
         try:
             yield
         finally:
+            gpu_probe.cancel()
+            with contextlib.suppress(BaseException):
+                await gpu_probe
             await app.state.media.shutdown()
             await app.state.jobs.shutdown()
             executor.shutdown(wait=False, cancel_futures=True)
@@ -128,6 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(projects.router)
     api.include_router(presets.router)
     api.include_router(export.router)
+    api.include_router(cache.router)
     api.include_router(ai.router)
     api.include_router(ws.router)
     if settings.aieditor_debug:

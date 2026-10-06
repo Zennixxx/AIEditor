@@ -36,6 +36,9 @@ class AssetsRepo:
     def list(self) -> list[Asset]:
         return list(self._cache.values())
 
+    def forget(self, asset_id: str) -> None:
+        self._cache.pop(asset_id, None)
+
     def save(self, asset: Asset) -> None:
         atomic.write_json(self.paths.asset_dir(asset.id) / "meta.json", dump(asset))
         self._cache[asset.id] = asset

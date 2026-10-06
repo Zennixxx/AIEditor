@@ -252,9 +252,45 @@ export interface Health {
   demucs: boolean
   gemini: boolean
   /**
+   * Vulkan-устройства, которые видит rife-ncnn-vulkan; пустой список — RIFE не нашёл GPU (интерполяция через minterpolate); поля нет — RIFE нет или проверка ещё идёт.
+   */
+  gpus?: string[]
+  disk: DiskInfo
+  /**
    * Ошибки проверки shared/effects.json и shared/styles.json при старте бэка; поля нет — реестры в порядке.
    */
   registryErrors?: string[]
+}
+/**
+ * Диск каталога данных бэка.
+ */
+export interface DiskInfo {
+  /**
+   * абсолютный путь каталога данных
+   */
+  path: string
+  /**
+   * свободно, байт
+   */
+  free: number
+  /**
+   * всего, байт
+   */
+  total: number
+}
+/**
+ * Ответ DELETE /cache (CONTRACT §8.8).
+ */
+export interface CacheCleanupResult {
+  /**
+   * id удалённых ассетов (исходных и производных)
+   */
+  removedAssets: string[]
+  /**
+   * удалено записей кэша ответов Gemini
+   */
+  geminiFiles: number
+  freedBytes: number
 }
 export interface Thumbs {
   interval: number

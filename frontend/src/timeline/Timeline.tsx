@@ -15,10 +15,14 @@ import { hitMoment } from './momentLayout'
 import {
   DEFAULT_PALETTE,
   drawTimeline,
+  drawTracks,
+  movingIds,
   type InterpolationView,
   type MediaSource,
   type Palette,
+  type Scene,
 } from './render'
+import { timelineStats } from './stats'
 import styles from './Timeline.module.css'
 import { TrackHeaders } from './TrackHeaders'
 
@@ -41,6 +45,22 @@ function readPalette(el: HTMLElement): Palette {
     playhead: v('--playhead', DEFAULT_PALETTE.playhead),
     snap: v('--snap', DEFAULT_PALETTE.snap),
   }
+}
+
+/** Поля UI, от которых зависит слой дорожек; остальные (скролл по времени, плейхед…) — только наложение. */
+const LAYER_UI_KEYS = [
+  'selection',
+  'pxPerSec',
+  'scrollY',
+  'solo',
+  'markerSelection',
+  'markerVisibility',
+  'propLanes',
+  'keySelection',
+] as const
+
+function sameKey(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i])
 }
 
 function pointerInfo(e: PointerEvent | MouseEvent, canvas: HTMLCanvasElement): PointerInfo {
@@ -89,11 +109,45 @@ export function Timeline() {
     let dirty = true
     let raf = 0
     const palette = readPalette(wrap)
+    // Слой дорожек кэшируется на диапазон времени шире экрана: при горизонтальном скролле
+    // кадр — один drawImage со сдвигом, перерисовка слоя — только при выходе за диапазон или изменениях.
+    const layerCanvas = document.createElement('canvas')
+    const layerCtx = layerCanvas.getContext('2d')
+    let layer: { t0: number; t1: number; key: unknown[] } | null = null
+    let layerStale = true
+    let lastScrollX = 0
+
+    const renderLayer = (scene: Scene, key: unknown[], dpr: number, extend: boolean) => {
+      const v = scene.view
+      const span = v.width / v.pxPerSec
+      const ahead = extend ? span : 0
+      const forward = v.scrollX >= lastScrollX
+      const t0 = Math.max(0, forward ? v.scrollX : v.scrollX - ahead)
+      const lw = Math.ceil((v.scrollX + span + (forward ? ahead : 0) - t0) * v.pxPerSec)
+      const bw = Math.max(1, Math.round(lw * dpr))
+      const bh = Math.max(1, Math.round(v.height * dpr))
+      if (layerCanvas.width !== bw || layerCanvas.height !== bh) {
+        layerCanvas.width = bw
+        layerCanvas.height = bh
+      }
+      layerCtx!.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const lv = { ...v, scrollX: t0, width: lw }
+      drawTracks(layerCtx!, {
+        ...scene,
+        view: lv,
+        markers: controller.markersFor(lv),
+        keys: controller.keysFor(lv),
+        sticky: false,
+      })
+      layer = { t0, t1: t0 + lw / v.pxPerSec, key }
+      layerStale = false
+    }
 
     const draw = () => {
       raf = 0
       if (!dirty) return
       dirty = false
+      const startedAt = performance.now()
       const dpr = window.devicePixelRatio || 1
       const w = Math.max(1, Math.round(size.width * dpr))
       const h = Math.max(1, Math.round(size.height * dpr))
@@ -109,10 +163,12 @@ export function Timeline() {
       const analyses = useClipAnalysis.getState().byAsset
       const lookup = (id: string) => assets[id] ?? p.assets.find((a) => a.id === id)
       const jobs = useInterpolation.getState().byClip
-      drawTimeline(ctx, {
+      const view = controller.view()
+      const rows = controller.rows()
+      const scene: Scene = {
         project: p,
-        rows: controller.rows(),
-        view: controller.view(),
+        rows,
+        view,
         assets: (id) => assets[id] ?? p.assets.find((a) => a.id === id),
         selection: new Set(ui.selection),
         playhead: ui.playhead,
@@ -120,7 +176,7 @@ export function Timeline() {
         solo: ui.solo,
         markers: controller.markers(),
         sections: controller.sections(),
-        keys: controller.keys(),
+        keys: layerCtx ? [] : controller.keys(),
         media,
         palette,
         inPoint: ui.inPoint,
@@ -133,11 +189,29 @@ export function Timeline() {
           const ready = usableInterpolation(clip, lookup)
           return ready?.parent ? { state: 'ready', quality: ready.parent.quality ?? 'rife' } : null
         },
-      })
+      }
+      if (!layerCtx) {
+        drawTimeline(ctx, { ...scene, keys: controller.keys() })
+      } else {
+        const moving = [...movingIds(controller.overlay)].join(',')
+        const key = [p, rows, aiPreview, view.pxPerSec, view.scrollY, view.width, view.height, dpr, moving]
+        const span = view.width / view.pxPerSec
+        const same = layer !== null && !layerStale && sameKey(layer.key, key)
+        const fits = same && layer!.t0 <= view.scrollX + 1e-9 && view.scrollX + span <= layer!.t1 + 1e-9
+        if (!fits) renderLayer(scene, key, dpr, same)
+        const sx = Math.round((view.scrollX - layer!.t0) * view.pxPerSec * dpr)
+        drawTimeline(ctx, scene, { canvas: layerCanvas, sx, dpr })
+      }
+      lastScrollX = view.scrollX
+      timelineStats.record(performance.now() - startedAt)
     }
     const redraw = () => {
       dirty = true
       if (!raf) raf = requestAnimationFrame(draw)
+    }
+    const invalidate = () => {
+      layerStale = true
+      redraw()
     }
 
     const controller = new TimelineController({
@@ -152,16 +226,16 @@ export function Timeline() {
     const ro = new ResizeObserver(() => {
       size = { width: wrap.clientWidth, height: wrap.clientHeight }
       useUi.getState().setViewWidth(size.width)
-      redraw()
+      invalidate()
     })
     ro.observe(wrap)
 
     const unsubs = [
-      useProject.subscribe(redraw),
-      useAssets.subscribe(redraw),
-      useInterpolation.subscribe(redraw),
-      useAi.subscribe(redraw),
-      useClipAnalysis.subscribe(redraw),
+      useProject.subscribe(invalidate),
+      useAssets.subscribe(invalidate),
+      useInterpolation.subscribe(invalidate),
+      useAi.subscribe(invalidate),
+      useClipAnalysis.subscribe(invalidate),
       useUi.subscribe((s, prev) => {
         // автоскролл за плейхедом при воспроизведении (фаза 1b включает `playing`)
         if (s.playing && s.playhead !== prev.playhead) {
@@ -171,9 +245,10 @@ export function Timeline() {
           )
           if (x !== s.scrollX) s.setScroll(x)
         }
-        redraw()
+        if (LAYER_UI_KEYS.some((k) => s[k] !== prev[k])) invalidate()
+        else redraw()
       }),
-      onMediaLoaded(redraw),
+      onMediaLoaded(invalidate),
     ]
 
     const onDown = (e: PointerEvent) => {

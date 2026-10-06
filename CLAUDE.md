@@ -40,6 +40,7 @@ npm run dev | dev:mock
 npm run gen:types
 npm run typecheck && npm run lint && npm test
 npm run e2e                 # Playwright (сам поднимает dev:mock); браузер: npx playwright install chromium
+npm run e2e:perf            # замер таймлайна (500 клипов, 2000 маркеров), один воркер
 
 # backend/
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload --reload-dir app

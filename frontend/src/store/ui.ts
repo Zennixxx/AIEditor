@@ -7,6 +7,8 @@ import { DEFAULT_VISIBILITY, type MarkerVisibility } from '@/model/markers'
 
 export type Tool = 'select' | 'blade'
 
+export type Modal = 'projects' | 'settings' | 'hotkeys'
+
 export const MIN_PX_PER_SEC = 0.5
 export const MAX_PX_PER_SEC = 2400
 
@@ -55,6 +57,8 @@ interface UiState {
   inPoint: number | null
   outPoint: number | null
   exportDialogOpen: boolean
+  /** Открытое модальное окно верхней панели. */
+  modal: Modal | null
   curveEditorClipId: string | null
   curveKey: number | null
 
@@ -83,6 +87,7 @@ interface UiState {
   setInPoint: (t: number | null) => void
   setOutPoint: (t: number | null) => void
   setExportDialogOpen: (open: boolean) => void
+  setModal: (modal: Modal | null) => void
   openCurveEditor: (clipId: string | null) => void
   selectCurveKey: (index: number | null) => void
 }
@@ -118,6 +123,7 @@ export const useUi = create<UiState>()((set, get) => ({
   inPoint: null,
   outPoint: null,
   exportDialogOpen: false,
+  modal: null,
   curveEditorClipId: null,
   curveKey: null,
 
@@ -167,6 +173,7 @@ export const useUi = create<UiState>()((set, get) => ({
     })
   },
   setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
+  setModal: (modal) => set({ modal }),
   openCurveEditor: (curveEditorClipId) =>
     set((s) => ({
       curveEditorClipId,

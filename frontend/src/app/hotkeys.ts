@@ -1,7 +1,9 @@
-// Глобальные горячие клавиши редактора: правка таймлайна и транспорт (Space, J/K/L, ←/→, Home/End).
+// Глобальные горячие клавиши редактора: команды из keymap.ts с клавишами пользователя.
 import { player } from '@/playback/player'
+import { saveNow } from '@/store/projectIo'
 import { useUi } from '@/store/ui'
 import * as actions from './actions'
+import { bindingFromEvent, commandFor } from './keymap'
 
 /** Ползунки, флажки и т. п. не вводят текст: горячие клавиши работают, даже если фокус остался на них. */
 const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'color'])
@@ -12,72 +14,68 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
-export function handleHotkey(e: KeyboardEvent): boolean {
-  const ui = useUi.getState()
-  if (isTyping(e.target) || ui.cutDialogOpen || ui.exportDialogOpen) return false // модальный диалог владеет клавиатурой
-  const mod = e.ctrlKey || e.metaKey
-  const key = e.key.toLowerCase()
-  // e.code — чтобы работало в любой раскладке (Ctrl+K в русской = Ctrl+Л)
-  const code = e.code
+const lane = (l: Parameters<ReturnType<typeof useUi.getState>['toggleLane']>[0]) => () =>
+  useUi.getState().toggleLane(l)
 
-  if (mod && (code === 'KeyZ' || key === 'z')) {
-    if (e.shiftKey) actions.redo()
-    else actions.undo()
-    return true
-  }
-  if (mod && (code === 'KeyY' || key === 'y')) return run(actions.redo)
-  if (mod && (code === 'KeyK' || key === 'k')) return run(actions.splitAtPlayhead)
-  if (mod && (code === 'KeyA' || key === 'a')) return run(actions.selectAll)
-  if (mod && (code === 'KeyC' || key === 'c')) return run(actions.copySelection)
-  if (mod && (code === 'KeyV' || key === 'v')) return run(actions.paste)
-  if (e.altKey && !mod && code === 'KeyX') return run(actions.clearInOut)
-  if (e.shiftKey && !mod && !e.altKey && code === 'F3') return run(actions.toggleCurveEditor)
-  if (mod || e.altKey) return false
-
-  // транспорт (по e.code — в любой раскладке)
-  if (code === 'Space' || key === ' ') return e.repeat || run(() => player.toggle())
-  if (code === 'KeyJ') return run(() => player.shuttle(-1))
-  if (code === 'KeyK') return run(() => player.pause())
-  if (code === 'KeyL') return run(() => player.shuttle(1))
-  if (e.shiftKey && key === 'arrowleft') return run(() => actions.gotoMarker(-1))
-  if (e.shiftKey && key === 'arrowright') return run(() => actions.gotoMarker(1))
-  if (code === 'KeyM') return e.repeat || run(actions.addMarkerAtPlayhead)
-  if (code === 'KeyI') return run(actions.setInAtPlayhead)
-  if (code === 'KeyO') return run(actions.setOutAtPlayhead)
-  if (!e.shiftKey && key === 'arrowleft') return run(() => player.step(-1))
-  if (!e.shiftKey && key === 'arrowright') return run(() => player.step(1))
-  if (key === 'home') return run(() => player.home())
-  if (key === 'end') return run(() => player.end())
-
-  if (key === 'delete' || key === 'backspace') {
-    actions.deleteSelection(e.shiftKey)
-    return true
-  }
-  // дорожки свойств (как в AE): P — позиция, R — поворот, T — непрозрачность, Shift+S — масштаб
-  // (S без Shift — привязка), U — анимированные свойства / скрыть все
-  if (code === 'KeyP') return run(() => useUi.getState().toggleLane('position'))
-  if (code === 'KeyR') return run(() => useUi.getState().toggleLane('rotation'))
-  if (code === 'KeyT') return run(() => useUi.getState().toggleLane('opacity'))
-  if (e.shiftKey && code === 'KeyS') return run(() => useUi.getState().toggleLane('scale'))
-  if (code === 'KeyU') return run(actions.toggleAnimatedLanes)
-  if (code === 'KeyC') return run(() => useUi.getState().setTool('blade'))
-  if (code === 'KeyV') return run(() => useUi.getState().setTool('select'))
-  if (code === 'KeyS') return run(actions.toggleSnap)
-  if (key === '+' || key === '=' || code === 'NumpadAdd') return run(actions.zoomIn)
-  if (key === '-' || key === '_' || code === 'NumpadSubtract') return run(actions.zoomOut)
-  if (key === '\\' || code === 'Backslash') return run(actions.zoomFit)
-  if (key === 'escape') {
-    useUi.getState().select([])
-    useUi.getState().selectMarkers([])
-    useUi.getState().selectKeys([])
-    useUi.getState().setTool('select')
-    return true
-  }
-  return false
+export const HOTKEY_ACTIONS: Record<string, () => void> = {
+  undo: actions.undo,
+  redo: actions.redo,
+  split: actions.splitAtPlayhead,
+  selectAll: actions.selectAll,
+  copy: actions.copySelection,
+  paste: actions.paste,
+  delete: () => actions.deleteSelection(false),
+  rippleDelete: () => actions.deleteSelection(true),
+  escape: () => {
+    const ui = useUi.getState()
+    ui.select([])
+    ui.selectMarkers([])
+    ui.selectKeys([])
+    ui.setTool('select')
+  },
+  toolSelect: () => useUi.getState().setTool('select'),
+  toolBlade: () => useUi.getState().setTool('blade'),
+  playPause: () => player.toggle(),
+  shuttleBack: () => player.shuttle(-1),
+  stop: () => player.pause(),
+  shuttleForward: () => player.shuttle(1),
+  frameBack: () => player.step(-1),
+  frameForward: () => player.step(1),
+  home: () => player.home(),
+  end: () => player.end(),
+  setIn: actions.setInAtPlayhead,
+  setOut: actions.setOutAtPlayhead,
+  clearInOut: actions.clearInOut,
+  addMarker: actions.addMarkerAtPlayhead,
+  prevMarker: () => actions.gotoMarker(-1),
+  nextMarker: () => actions.gotoMarker(1),
+  toggleSnap: actions.toggleSnap,
+  zoomIn: actions.zoomIn,
+  zoomOut: actions.zoomOut,
+  zoomFit: actions.zoomFit,
+  lanePosition: lane('position'),
+  laneScale: lane('scale'),
+  laneRotation: lane('rotation'),
+  laneOpacity: lane('opacity'),
+  lanesAnimated: actions.toggleAnimatedLanes,
+  curveEditor: actions.toggleCurveEditor,
+  hotkeys: () => useUi.getState().setModal('hotkeys'),
+  projects: () => useUi.getState().setModal('projects'),
+  settings: () => useUi.getState().setModal('settings'),
+  save: () => void saveNow(),
+  export: actions.openExportDialog,
 }
 
-function run(fn: () => void): true {
-  fn()
+export function handleHotkey(e: KeyboardEvent): boolean {
+  const ui = useUi.getState()
+  // модальный диалог владеет клавиатурой
+  if (isTyping(e.target) || ui.cutDialogOpen || ui.exportDialogOpen || ui.modal) return false
+  const binding = bindingFromEvent(e)
+  if (!binding) return false
+  const cmd = commandFor(binding)
+  if (!cmd) return false
+  if (cmd.noRepeat && e.repeat) return true
+  HOTKEY_ACTIONS[cmd.id]?.()
   return true
 }
 

@@ -9,6 +9,7 @@ import { formatTimecode } from '@/shared/time'
 import type { Project } from '@/shared/types.gen'
 import { onMediaLoaded } from '@/store/media'
 import { useProject } from '@/store/project'
+import { PREVIEW_QUALITIES, useSettings, type PreviewQuality } from '@/store/settings'
 import { useUi } from '@/store/ui'
 import { Panel } from './Panel'
 import styles from './Preview.module.css'
@@ -45,6 +46,7 @@ export function Preview() {
   const playing = useUi((s) => s.playing)
   const playRate = useUi((s) => s.playRate)
   const fps = useProject((s) => s.project.fps)
+  const quality = useSettings((s) => s.previewQuality)
   const viewportRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -76,10 +78,11 @@ export function Preview() {
       canvas.style.top = `${r.y}px`
       canvas.style.width = `${r.w}px`
       canvas.style.height = `${r.h}px`
-      // буфер — не больше размера проекта
+      // буфер — не больше размера проекта, уменьшенный настройкой качества превью
       const dpr = window.devicePixelRatio || 1
-      const bw = Math.max(1, Math.round(Math.min(r.w * dpr, p.width)))
-      const bh = Math.max(1, Math.round(Math.min(r.h * dpr, p.height)))
+      const q = useSettings.getState().previewQuality
+      const bw = Math.max(1, Math.round(Math.min(r.w * dpr, p.width) * q))
+      const bh = Math.max(1, Math.round(Math.min(r.h * dpr, p.height) * q))
       if (canvas.width !== bw || canvas.height !== bh) {
         canvas.width = bw
         canvas.height = bh
@@ -132,6 +135,7 @@ export function Preview() {
         if (s.playhead !== prev.playhead || s.playing !== prev.playing) redraw()
       }),
       useProject.subscribe(redraw),
+      useSettings.subscribe(redraw),
       onMediaLoaded(redraw),
       player.onFrame(redraw),
     ]
@@ -183,6 +187,22 @@ export function Preview() {
             {formatTimecode(playhead, fps)}
           </span>
           {playing && playRate !== 1 && <span className={styles.rate}>{playRate}×</span>}
+          <select
+            className={styles.quality}
+            value={quality}
+            onChange={(e) =>
+              useSettings.getState().setPreviewQuality(Number(e.currentTarget.value) as PreviewQuality)
+            }
+            title="Качество превью: разрешение буфера (на экспорт не влияет)"
+            aria-label="Качество превью"
+            data-testid="preview-quality"
+          >
+            {PREVIEW_QUALITIES.map((q) => (
+              <option key={q.value} value={q.value}>
+                {q.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </Panel>

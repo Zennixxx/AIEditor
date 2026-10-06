@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from app.errors import ApiException
 from app.models.gen import CreateProjectRequest, Project, ProjectListItem
@@ -35,6 +35,15 @@ async def get_project(project_id: str, request: Request) -> Project:
         return _repo(request).get(project_id)
     except ProjectNotFound as exc:
         raise _not_found(project_id) from exc
+
+
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(project_id: str, request: Request) -> Response:
+    try:
+        _repo(request).delete(project_id)
+    except ProjectNotFound as exc:
+        raise _not_found(project_id) from exc
+    return Response(status_code=204)
 
 
 @router.put("/{project_id}", response_model=Project, response_model_exclude_none=True)

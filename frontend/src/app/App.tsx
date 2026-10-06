@@ -9,11 +9,16 @@ import { Preview } from '@/panels/Preview'
 import { player } from '@/playback/player'
 import { startBackendMonitor } from '@/store/backend'
 import { startInterpolationSync } from '@/store/interpolation'
+import { restoreLastProject, startAutosave } from '@/store/projectIo'
 import { startDataSync } from '@/store/sync'
+import { useUi } from '@/store/ui'
 import { CutDialog } from '@/timeline/CutDialog'
 import { FxDialog } from '@/timeline/FxDialog'
 import { TimelinePanel } from '@/timeline/TimelinePanel'
 import styles from './App.module.css'
+import { HotkeysDialog } from './HotkeysDialog'
+import { ProjectsDialog } from './ProjectsDialog'
+import { SettingsDialog } from './SettingsDialog'
 import { SplitPane } from './SplitPane'
 import { installHotkeys } from './hotkeys'
 import { TopBar } from './TopBar'
@@ -24,6 +29,11 @@ export function App() {
   useEffect(() => startInterpolationSync(), [])
   useEffect(() => installHotkeys(), [])
   useEffect(() => player.start(), [])
+  useEffect(() => startAutosave(), [])
+  useEffect(() => {
+    void restoreLastProject()
+  }, [])
+  const modal = useUi((s) => s.modal)
 
   return (
     <div className={styles.app}>
@@ -48,6 +58,9 @@ export function App() {
       <FxDialog />
       <ExportDialog />
       <AutoEditWizard />
+      {modal === 'projects' && <ProjectsDialog />}
+      {modal === 'settings' && <SettingsDialog />}
+      {modal === 'hotkeys' && <HotkeysDialog />}
     </div>
   )
 }

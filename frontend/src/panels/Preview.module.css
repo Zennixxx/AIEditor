@@ -37,6 +37,7 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
+  position: relative;
   height: 36px;
   border-top: 1px solid var(--border);
   flex: none;
@@ -81,4 +82,16 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--snap);
+}
+
+.quality {
+  position: absolute;
+  right: 8px;
+  height: 22px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
 }

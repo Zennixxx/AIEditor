@@ -95,8 +95,36 @@ def test_put_validation(client: TestClient) -> None:
     assert r.status_code == 422 and r.json()["error"]["code"] == "validation_error"
     r = client.put(f"/api/projects/{p['id']}", json=other)
     assert r.status_code == 400 and r.json()["error"]["code"] == "project_id_mismatch"
-    missing = {**p, "id": "prj_nothere0000"}
+    missing = {**p, "id": "prj_nothere0000", "revision": 3}
     r = client.put("/api/projects/prj_nothere0000", json=missing)
+    assert r.status_code == 404 and r.json()["error"]["code"] == "project_not_found"
+
+
+def test_put_creates_new_project_with_revision_zero(client: TestClient, settings: Any) -> None:
+    fixture = load_json(FIXTURES / "project.json")
+    body = {**copy.deepcopy(fixture), "id": "prj_fromfront1", "revision": 0}
+    r = client.put("/api/projects/prj_fromfront1", json=body)
+    assert r.status_code == 200, r.text
+    saved = r.json()
+    validate(saved, "Project")
+    assert saved["revision"] == 1 and saved["createdAt"] == saved["updatedAt"]
+    assert client.get("/api/projects/prj_fromfront1").json() == saved
+    assert not (settings.data_dir / "projects" / "prj_fromfront1.history").exists()
+    r = client.put("/api/projects/prj_fromfront1", json=body)
+    assert r.status_code == 409 and r.json()["error"]["details"] == {"revision": 1}
+
+
+def test_delete_project_with_history(client: TestClient, settings: Any) -> None:
+    p = _create(client)
+    client.put(f"/api/projects/{p['id']}", json=p)
+    hist = settings.data_dir / "projects" / f"{p['id']}.history"
+    assert hist.is_dir()
+    r = client.delete(f"/api/projects/{p['id']}")
+    assert r.status_code == 204 and r.content == b""
+    assert not hist.exists()
+    assert client.get(f"/api/projects/{p['id']}").status_code == 404
+    assert client.get("/api/projects").json() == []
+    r = client.delete(f"/api/projects/{p['id']}")
     assert r.status_code == 404 and r.json()["error"]["code"] == "project_not_found"
 
 

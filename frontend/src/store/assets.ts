@@ -15,6 +15,8 @@ interface AssetsState {
   upload: (files: readonly File[]) => Promise<void>
   upsertAsset: (asset: Asset) => void
   upsertJob: (job: Job) => void
+  /** Убрать ассеты из библиотеки (удалены очисткой кэша). */
+  removeAssets: (ids: readonly string[]) => void
 }
 
 export const useAssets = create<AssetsState>()((set, get) => ({
@@ -54,6 +56,15 @@ export const useAssets = create<AssetsState>()((set, get) => ({
     })),
 
   upsertJob: (job) => set((s) => ({ jobs: { ...s.jobs, [job.id]: job } })),
+
+  removeAssets: (ids) => {
+    if (ids.length === 0) return
+    const gone = new Set(ids)
+    set((s) => ({
+      assets: Object.fromEntries(Object.entries(s.assets).filter(([id]) => !gone.has(id))),
+      order: s.order.filter((id) => !gone.has(id)),
+    }))
+  },
 }))
 
 /** Незавершённые задачи ассета (для прогресса на карточке). */

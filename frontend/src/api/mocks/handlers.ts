@@ -3,6 +3,7 @@
 import { delay, http, HttpResponse, ws } from 'msw'
 import type {
   Asset,
+  CacheCleanupResult,
   CreateEffectPresetRequest,
   EffectPreset,
   ImportResponse,
@@ -439,17 +440,46 @@ export const handlers = [
   }),
   http.put(url('/projects/:id'), async ({ params, request }) => {
     const current = projects.get(String(params.id))
-    if (!current) return notFound('project_not_found', 'Проект не найден')
     const body = (await request.json()) as Project
+    if (!current) {
+      if (body.revision !== 0) return notFound('project_not_found', 'Проект не найден')
+      const now = new Date().toISOString()
+      const created: Project = { ...body, revision: 1, createdAt: now, updatedAt: now }
+      projects.set(created.id, created)
+      return HttpResponse.json(created)
+    }
     if (body.revision !== current.revision) {
       return HttpResponse.json(
-        { error: { code: 'revision_conflict', message: 'Проект изменён в другом окне' } },
+        {
+          error: {
+            code: 'revision_conflict',
+            message: 'Проект изменён в другом окне',
+            details: { revision: current.revision },
+          },
+        },
         { status: 409 },
       )
     }
     const saved: Project = { ...body, revision: body.revision + 1, updatedAt: new Date().toISOString() }
     projects.set(saved.id, saved)
     return HttpResponse.json(saved)
+  }),
+
+  http.delete(url('/projects/:id'), ({ params }) =>
+    projects.delete(String(params.id))
+      ? new HttpResponse(null, { status: 204 })
+      : notFound('project_not_found', 'Проект не найден'),
+  ),
+
+  http.delete(url('/cache'), ({ request }) => {
+    const days = Number(new URL(request.url).searchParams.get('olderThanDays') ?? 30)
+    if (!Number.isInteger(days) || days < 0)
+      return HttpResponse.json(
+        { error: { code: 'validation_error', message: 'Некорректный запрос' } },
+        { status: 422 },
+      )
+    const result: CacheCleanupResult = { removedAssets: [], geminiFiles: 0, freedBytes: 0 }
+    return HttpResponse.json(result)
   }),
 
   http.get(url('/presets'), () => HttpResponse.json(presets)),

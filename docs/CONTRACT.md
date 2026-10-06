@@ -398,11 +398,11 @@ interface EffectDef {
 
 ## 8. HTTP API
 
-База: `http://127.0.0.1:8765/api`. CORS разрешён только для `http://localhost:5173` и `tauri://localhost`.
+База: `http://127.0.0.1:8765/api`. CORS разрешён только для `http://localhost:5173` и `http://127.0.0.1:5173`.
 
 | Метод | Путь | Тело / параметры | Ответ |
 |---|---|---|---|
-| GET | `/health` | — | `{status:"ok", version, schemaVersion, ffmpeg:bool, rife:bool, demucs:bool, gemini:bool, registryErrors?: string[]}` — `registryErrors` только если `shared/effects.json` / `styles.json` не прошли проверку при старте |
+| GET | `/health` | — | `{status:"ok", version, schemaVersion, ffmpeg:bool, rife:bool, demucs:bool, gemini:bool, gpus?: string[], disk: {path, free, total}, registryErrors?: string[]}` — `registryErrors` только если `shared/effects.json` / `styles.json` не прошли проверку при старте; `gpus` — Vulkan-устройства, которые видит RIFE (пусто — GPU нет, интерполяция через `minterpolate`; поля нет — RIFE нет или проверка при старте ещё идёт); `disk` — диск каталога данных, байты |
 | POST | `/assets/import` | `{paths: string[]}` | `{assets: Asset[], jobs: JobRef[]}` |
 | POST | `/assets/upload` | multipart `files[]` (для браузерного режима; файл копируется в `data/uploads`) | `{assets: Asset[], jobs: JobRef[]}` |
 | GET | `/assets` | — | `Asset[]` |
@@ -418,7 +418,8 @@ interface EffectDef {
 | GET | `/projects` | — | `{id,name,updatedAt}[]` |
 | POST | `/projects` | `{name, fps, width, height}` | `Project` |
 | GET | `/projects/{id}` | — | `Project` |
-| PUT | `/projects/{id}` | `Project` (с текущим `revision`) | `Project` (revision+1) или 409 при конфликте |
+| PUT | `/projects/{id}` | `Project` (с текущим `revision`) | `Project` (revision+1) или 409 при конфликте; несуществующий проект с `revision: 0` создаётся (§9) |
+| DELETE | `/projects/{id}` | — | `204`; история версий удаляется вместе с проектом |
 | GET | `/presets` | — | `EffectPreset[]` (порядок создания) |
 | GET | `/presets/styles` | — | `StylePreset[]` — пользовательские стили (из `style-from-reference`), порядок сохранения |
 | POST | `/presets` | `CreateEffectPresetRequest` `{name, description?, effects}` | `EffectPreset` с новым `id` (`pst_`) |
@@ -427,6 +428,7 @@ interface EffectDef {
 | POST | `/ai/command` | `AICommandRequest` | `OpsResult` |
 | POST | `/ai/auto-edit` | `AutoEditRequest` | `JobRef` (kind `autoEdit`) → `OpsResult` (§8.6); работает и без ключа Gemini |
 | POST | `/ai/style-from-reference/{id}` | — | `JobRef` (kind `styleRef`) → `StylePreset` (§8.7); без ключа — только плотность склеек |
+| DELETE | `/cache` | `?olderThanDays=N` (целое ≥ 0, по умолчанию 30) | `CacheCleanupResult` `{removedAssets: string[], geminiFiles, freedBytes}` (§8.8) |
 | POST | `/export/ae-jsx` | `Project` | скрипт ExtendScript для After Effects: `text/javascript; charset=utf-8`, `Content-Disposition: attachment` (§8.3) |
 | GET | `/jobs/{id}` | — | `Job` |
 | DELETE | `/jobs/{id}` | — | `Job` (canceled) |
@@ -508,6 +510,7 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 | | 404 | `file_not_found` | производный файл ещё не готов |
 | `/projects/{id}` | 404 | `project_not_found` | — |
 | `PUT /projects/{id}` | 400 | `project_id_mismatch` | id в теле ≠ id в пути |
+| | 404 | `project_not_found` | проекта нет, а `revision` ≠ 0 |
 | | 409 | `revision_conflict` | `revision` — текущая ревизия |
 | `/jobs/{id}` | 404 | `job_not_found` | — |
 | `GET /analysis/music/{id}`, `GET /analysis/clip/{id}` | 404 | `analysis_not_found` | анализ ещё не выполнен |
@@ -567,6 +570,14 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 - `effects`, `globalEffects`, `ramps`, `transitions`, `name`, `description`, `notes` — от Gemini Pro по видео, только из реестра и пресетов ramp; без ключа — пустые списки.
 - `id` = `ref_<id ассета без ast_>`; стиль сохраняется (с заменой того же `id`) в `data/presets.json` (`styles`) и отдаётся `GET /presets/styles`. В автоэдит передаётся как `style: "custom"` + `customStyle`.
 
+### 8.8 Очистка кэша (`DELETE /cache`)
+
+- Ассет **используется**, если его `id` есть в `assets` или в `clip.assetId` / `clip.interpolatedAssetId` хотя бы одного сохранённого проекта (несохранённый проект в памяти фронта не учитывается — фронт сначала сохраняет его). Неиспользуемый ассет удаляется целиком (каталог `data/assets/{id}`: proxy, mezzanine, превью-кадры, waveform, анализы, стемы, а для производного — интерполированное видео; у загруженных через `/assets/upload` — и копия в `data/uploads`), если ни один его файл не менялся `olderThanDays` суток. Оригиналы, импортированные по пути, не трогаются.
+- Не удаляются ассеты со `status: "importing"` и ассеты с незавершёнными задачами.
+- Кэш ответов Gemini (`data/cache/gemini/*.json`) старше `olderThanDays` суток удаляется; сопоставление файлов Files API не трогается.
+- Удалённые ассеты пропадают из `GET /assets`; WS-событий нет — фронт перечитывает список. Повторный импорт того же файла создаёт ассет заново.
+- `olderThanDays` не целое или < 0 → 422 `validation_error`.
+
 ### 8.3 Экспорт
 
 **MP4 (в браузере, без бэка).** Кадр `i` выхода — timeline time `T = start + i / fps` (`start` — начало диапазона: 0 или in-точка); план и шейдеры — те же, что в превью (§2.1, порядок рендера — инвариант 7). Источник кадра клипа — первый декодируемый из: оригинал интерполированного ассета (`clip.interpolatedAssetId`, §5.3), `/original` (если `browserDecodable`), `/mezzanine.mp4`, `/original`, `/proxy.mp4`; берётся последний кадр с PTS ≤ `src(τ)`. Звук — сведение всех не muted дорожек (solo — состояние сессии, в экспорт не попадает) с громкостями дорожек и клипов, скоростью/`reverse`/`timeRemap` как при воспроизведении; 48 кГц стерео, AAC 320 кбит/с (если браузер не кодирует AAC — Opus). Контейнер MP4.
@@ -581,6 +592,8 @@ interface CreateEffectPresetRequest { name: string; description?: string; effect
 
 ## 9. Сохранение проекта
 
-- Фронт держит проект в памяти; автосейв `PUT /projects/{id}` через 2 с после последнего изменения и при закрытии вкладки.
+- Фронт держит проект в памяти; автосейв `PUT /projects/{id}` через 2 с после последнего изменения, при уходе со вкладки (`visibilitychange` → hidden) и при закрытии вкладки.
+- Новый проект создаёт фронт (`id` по §1, `revision: 0`) и не сохраняет, пока в нём ничего не изменено; первый `PUT` с `revision: 0` создаёт проект на бэке. `POST /projects` остаётся для клиентов без своих ID.
+- Ответ `PUT` фронт не подставляет в проект целиком (правки, сделанные за время запроса, не теряются): берёт из него `revision` и `updatedAt`.
 - Бэк пишет `data/projects/{id}.json` атомарно (tmp + rename), хранит 20 последних версий в `data/projects/{id}.history/`.
 - 409 при несовпадении `revision` → фронт показывает «проект изменён в другом окне» (перезагрузить / перезаписать).

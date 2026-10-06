@@ -17,7 +17,7 @@ const tracks = (page: Page) =>
 async function openDemo(page: Page) {
   await page.goto('/')
   await page.getByRole('button', { name: 'Демо-проект' }).click()
-  await expect(page.getByTestId('project-name')).toHaveText('Demo phonk edit')
+  await expect(page.getByTestId('project-name')).toHaveValue('Demo phonk edit')
 }
 
 test('copilot: command → preview on the timeline → apply → undo', async ({ page }) => {

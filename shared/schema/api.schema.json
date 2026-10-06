@@ -23,7 +23,7 @@
     "Health": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "version", "schemaVersion", "ffmpeg", "rife", "demucs", "gemini"],
+      "required": ["status", "version", "schemaVersion", "ffmpeg", "rife", "demucs", "gemini", "disk"],
       "properties": {
         "status": { "const": "ok" },
         "version": { "type": "string" },
@@ -32,11 +32,40 @@
         "rife": { "type": "boolean" },
         "demucs": { "type": "boolean" },
         "gemini": { "type": "boolean" },
+        "gpus": {
+          "description": "Vulkan-устройства, которые видит rife-ncnn-vulkan; пустой список — RIFE не нашёл GPU (интерполяция через minterpolate); поля нет — RIFE нет или проверка ещё идёт.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "disk": { "$ref": "#/definitions/DiskInfo" },
         "registryErrors": {
           "description": "Ошибки проверки shared/effects.json и shared/styles.json при старте бэка; поля нет — реестры в порядке.",
           "type": "array",
           "items": { "type": "string" }
         }
+      }
+    },
+
+    "DiskInfo": {
+      "description": "Диск каталога данных бэка.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "free", "total"],
+      "properties": {
+        "path": { "type": "string", "description": "абсолютный путь каталога данных" },
+        "free": { "type": "integer", "minimum": 0, "description": "свободно, байт" },
+        "total": { "type": "integer", "minimum": 0, "description": "всего, байт" }
+      }
+    },
+    "CacheCleanupResult": {
+      "description": "Ответ DELETE /cache (CONTRACT §8.8).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["removedAssets", "geminiFiles", "freedBytes"],
+      "properties": {
+        "removedAssets": { "type": "array", "items": { "type": "string" }, "description": "id удалённых ассетов (исходных и производных)" },
+        "geminiFiles": { "type": "integer", "minimum": 0, "description": "удалено записей кэша ответов Gemini" },
+        "freedBytes": { "type": "integer", "minimum": 0 }
       }
     },
 

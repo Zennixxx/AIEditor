@@ -5,5 +5,11 @@
   "ffmpeg": true,
   "rife": true,
   "demucs": false,
-  "gemini": true
+  "gemini": true,
+  "gpus": ["NVIDIA GeForce RTX 3060"],
+  "disk": {
+    "path": "D:\\AIEditor\\data",
+    "free": 412316860416,
+    "total": 1000202039296
+  }
 }

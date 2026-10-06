@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     aieditor_debug: bool = False
     aieditor_shared_dir: Path = SHARED_DIR
     aieditor_interpolate_max_height: int = 1080
-    aieditor_cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "tauri://localhost"]
+    aieditor_cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    aieditor_probe_gpu: bool = True
 
     ffmpeg_path: Path | None = None
     ffprobe_path: Path | None = None

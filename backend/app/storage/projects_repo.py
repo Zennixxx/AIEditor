@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -97,9 +98,25 @@ class ProjectsRepo:
             self._write(project)
         return project
 
-    def save(self, project: Project) -> Project:
-        """Сохранить с оптимистичной блокировкой: `project.revision` должен совпасть с текущим."""
+    def delete(self, project_id: str) -> None:
         with self._lock:
+            f = self._file(project_id)
+            if not f.is_file():
+                raise ProjectNotFound(project_id)
+            f.unlink()
+            shutil.rmtree(self.history_dir(project_id), ignore_errors=True)
+
+    def save(self, project: Project) -> Project:
+        """Сохранить с оптимистичной блокировкой: `project.revision` должен совпасть с текущим.
+
+        Несуществующий проект с `revision: 0` создаётся (CONTRACT §9).
+        """
+        with self._lock:
+            if project.revision == 0 and not self._file(project.id).is_file():
+                now = _now()
+                created = project.model_copy(update={"revision": 1, "created_at": now, "updated_at": now})
+                self._write(created)
+                return created
             current = self.get(project.id)
             if project.revision != current.revision:
                 raise RevisionConflict(current.revision)

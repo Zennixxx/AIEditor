@@ -121,6 +121,18 @@ export interface Scene {
   clipAnalysis?: (assetId: string) => ClipAnalysis | undefined
   /** Предпросмотр ops от ИИ: новые элементы — «призраки», изменённые — фиолетовый контур. */
   highlight?: { created: ReadonlySet<string>; changed: ReadonlySet<string> } | null
+  /**
+   * Подпись клипа прижимается к левому краю вида, метка скорости — к правому (по умолчанию да).
+   * В кэшированном слое дорожек — нет: прижатые подписи дорисовывает drawTimeline поверх слоя.
+   */
+  sticky?: boolean
+}
+
+/** Готовый слой дорожек (drawTracks) и его сдвиг относительно вида в пикселях устройства. */
+export interface TrackLayer {
+  canvas: CanvasImageSource
+  sx: number
+  dpr: number
 }
 
 export interface InterpolationView {
@@ -133,7 +145,82 @@ export const SPEED_STRIP_H = 4
 
 const FONT = '11px "Inter Variable", Inter, system-ui, sans-serif'
 
-export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
+function rowDim(s: Scene, row: TrackRow): boolean {
+  return (
+    row.track.hidden ||
+    row.track.muted ||
+    (s.solo.length > 0 && row.track.kind === 'audio' && !s.solo.includes(row.track.id))
+  )
+}
+
+function itemStyle(s: Scene, row: TrackRow, item: TrackItem, moving: ReadonlySet<string>): ItemStyle {
+  return {
+    selected: s.selection.has(item.id),
+    dim: rowDim(s, row) || moving.has(item.id),
+    ghost: false,
+    locked: row.track.locked,
+    aiNew: s.highlight?.created.has(item.id) ?? false,
+    aiChanged: s.highlight?.changed.has(item.id) ?? false,
+  }
+}
+
+export function movingIds(overlay: Overlay): Set<string> {
+  return new Set(overlay.ghosts.map((g) => g.item.id))
+}
+
+/**
+ * Область дорожек: фон строк, клипы и эффекты, дорожки свойств, ключи, линии маркеров.
+ * Не зависит от плейхеда, линейки и временных элементов drag — её можно кэшировать при скролле.
+ */
+export function drawTracks(ctx: CanvasRenderingContext2D, s: Scene): void {
+  const { view: v, palette: c } = s
+  ctx.save()
+  ctx.fillStyle = c.bg
+  ctx.fillRect(0, 0, v.width, v.height)
+  ctx.font = FONT
+  ctx.textBaseline = 'middle'
+  const t0 = xToTime(0, v)
+  const t1 = xToTime(v.width, v)
+  const moving = movingIds(s.overlay)
+  for (const row of s.rows) {
+    const top = rowScreenTop(row, v)
+    if (top > v.height || top + row.height < RULER_H) continue
+    ctx.fillStyle = row.index % 2 ? c.rowB : c.rowA
+    ctx.fillRect(0, top, v.width, row.height)
+    ctx.fillStyle = c.border
+    ctx.fillRect(0, top + row.height - 1, v.width, 1)
+    for (const item of row.track.items) {
+      if (itemEnd(item) < t0 || item.start > t1) continue
+      drawItem(ctx, s, item, item.start, top, row.itemHeight, itemStyle(s, row, item, moving))
+    }
+    if (row.lanes.length > 0) drawLanes(ctx, s, row, t0, t1)
+  }
+  drawKeys(ctx, s.keys, c)
+  drawMarkerLines(ctx, s)
+  ctx.restore()
+}
+
+/** Подписи и метки скорости элементов, пересекающих края вида, — поверх кэшированного слоя. */
+function drawEdgeText(ctx: CanvasRenderingContext2D, s: Scene): void {
+  const { view: v } = s
+  const moving = movingIds(s.overlay)
+  for (const row of s.rows) {
+    const top = rowScreenTop(row, v)
+    if (top > v.height || top + row.height < RULER_H) continue
+    for (const item of row.track.items) {
+      const x0 = timeToX(item.start, v)
+      const x1 = timeToX(item.start + item.duration, v)
+      if (x1 <= 0 || x0 >= v.width) continue
+      const left = x0 < -2
+      const right = x1 > v.width + 2
+      if (!left && !right) continue
+      const st = itemStyle(s, row, item, moving)
+      drawItemText(ctx, s, item, item.start, top, row.itemHeight, st, left, right)
+    }
+  }
+}
+
+export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene, layer?: TrackLayer): void {
   const { view: v, palette: c } = s
   ctx.save()
   ctx.fillStyle = c.bg
@@ -146,34 +233,23 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
   ctx.beginPath()
   ctx.rect(0, RULER_H, v.width, v.height - RULER_H)
   ctx.clip()
-  const t0 = xToTime(0, v)
-  const t1 = xToTime(v.width, v)
-  const moving = new Set(s.overlay.ghosts.map((g) => g.item.id))
-  for (const row of s.rows) {
-    const top = rowScreenTop(row, v)
-    if (top > v.height || top + row.height < RULER_H) continue
-    ctx.fillStyle = row.index % 2 ? c.rowB : c.rowA
-    ctx.fillRect(0, top, v.width, row.height)
-    ctx.fillStyle = c.border
-    ctx.fillRect(0, top + row.height - 1, v.width, 1)
-    const dim =
-      row.track.hidden ||
-      row.track.muted ||
-      (s.solo.length > 0 && row.track.kind === 'audio' && !s.solo.includes(row.track.id))
-    for (const item of row.track.items) {
-      if (itemEnd(item) < t0 || item.start > t1) continue
-      drawItem(ctx, s, item, item.start, top, row.itemHeight, {
-        selected: s.selection.has(item.id),
-        dim: dim || moving.has(item.id),
-        ghost: false,
-        locked: row.track.locked,
-        aiNew: s.highlight?.created.has(item.id) ?? false,
-        aiChanged: s.highlight?.changed.has(item.id) ?? false,
-      })
-    }
-    if (row.lanes.length > 0) drawLanes(ctx, s, row, t0, t1)
+  if (layer) {
+    const d = layer.dpr
+    ctx.drawImage(
+      layer.canvas,
+      layer.sx,
+      RULER_H * d,
+      v.width * d,
+      (v.height - RULER_H) * d,
+      0,
+      RULER_H,
+      v.width,
+      v.height - RULER_H,
+    )
+    drawEdgeText(ctx, s)
+  } else {
+    drawTracks(ctx, s)
   }
-  drawKeys(ctx, s.keys, c)
   // призраки перемещения
   for (const g of s.overlay.ghosts) {
     const row = s.rows.find((r) => r.track.id === g.trackId)
@@ -206,7 +282,6 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, s: Scene): void {
     ctx.fillStyle = c.text
     ctx.fillText(dg.label, x0 + 6, top + 12)
   }
-  drawMarkerLines(ctx, s)
   ctx.restore()
 
   // рамка выделения
@@ -464,41 +539,12 @@ function drawItem(
     if (asset.kind === 'audio') drawWaveform(ctx, s, item, asset, start, vx0, vx1, y, h)
     else drawThumbs(ctx, s, item, asset, start, vx0, vx1, y, h)
   }
-  // подпись
-  const label = isClip(item)
-    ? (item.label ?? asset?.name ?? item.assetId)
-    : (getEffectDef(item.effect)?.name ?? item.effect)
-  if (w > 24) {
-    ctx.fillStyle = 'rgba(0,0,0,0.45)'
-    const tw = Math.min(ctx.measureText(label).width + 10, w)
-    ctx.fillRect(vx0, y, tw, 16)
-    ctx.fillStyle = c.text
-    ctx.fillText(label, vx0 + 5, y + 8)
-  }
+  const sticky = s.sticky !== false
+  if (w > 24) drawLabel(ctx, s, item, asset, sticky ? vx0 : x0, y, sticky ? w : x1 - x0)
   const varied = isClip(item) && (!!item.timeRemap || Math.abs(item.speed - 1) > EPS)
   if (isClip(item) && varied && !st.ghost)
     drawSpeedStrip(ctx, s, item, start, vx0, vx1, y + h - SPEED_STRIP_H)
-  if (isClip(item) && (varied || item.reverse) && w > 60) {
-    const interp = st.ghost ? null : (s.interpolation?.(item) ?? null)
-    const status = !interp
-      ? ''
-      : interp.state === 'running'
-        ? ` · ⟳ ${Math.round((interp.progress ?? 0) * 100)}%`
-        : interp.state === 'failed'
-          ? ' · !'
-          : interp.quality === 'fallback'
-            ? ' · ME'
-            : ' · RIFE'
-    const tag =
-      (item.timeRemap
-        ? `${item.reverse ? '◀ ' : ''}ramp`
-        : `${item.reverse ? '◀ ' : ''}${round2(item.speed)}×`) + status
-    ctx.fillStyle = 'rgba(0,0,0,0.45)'
-    const tw = ctx.measureText(tag).width + 10
-    ctx.fillRect(vx1 - tw, y, tw, 16)
-    ctx.fillStyle = interp?.state === 'failed' ? c.playhead : c.snap
-    ctx.fillText(tag, vx1 - tw + 5, y + 8)
-  }
+  if (isClip(item) && w > 60) drawSpeedTag(ctx, s, item, st, sticky ? vx1 : x1, y)
   if (isClip(item) && !st.ghost && asset?.kind === 'video') {
     const moments = s.clipAnalysis?.(item.assetId)?.moments
     if (moments?.length) {
@@ -531,6 +577,90 @@ function drawItem(
   ctx.roundRect(x0 + 0.5, y + 0.5, x1 - x0 - 1, h - 1, 3)
   ctx.stroke()
   ctx.setLineDash([])
+  ctx.restore()
+}
+
+function itemLabel(item: TrackItem, asset: Asset | undefined): string {
+  return isClip(item)
+    ? (item.label ?? asset?.name ?? item.assetId)
+    : (getEffectDef(item.effect)?.name ?? item.effect)
+}
+
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  s: Scene,
+  item: TrackItem,
+  asset: Asset | undefined,
+  x: number,
+  y: number,
+  maxW: number,
+): void {
+  const label = itemLabel(item, asset)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'
+  const tw = Math.min(ctx.measureText(label).width + 10, maxW)
+  ctx.fillRect(x, y, tw, 16)
+  ctx.fillStyle = s.palette.text
+  ctx.fillText(label, x + 5, y + 8)
+}
+
+/** Метка скорости / ramp и статус интерполяции у правого края клипа. */
+function drawSpeedTag(
+  ctx: CanvasRenderingContext2D,
+  s: Scene,
+  item: Clip,
+  st: ItemStyle,
+  right: number,
+  y: number,
+): void {
+  const varied = !!item.timeRemap || Math.abs(item.speed - 1) > EPS
+  if (!varied && !item.reverse) return
+  const interp = st.ghost ? null : (s.interpolation?.(item) ?? null)
+  const status = !interp
+    ? ''
+    : interp.state === 'running'
+      ? ` · ⟳ ${Math.round((interp.progress ?? 0) * 100)}%`
+      : interp.state === 'failed'
+        ? ' · !'
+        : interp.quality === 'fallback'
+          ? ' · ME'
+          : ' · RIFE'
+  const tag =
+    (item.timeRemap
+      ? `${item.reverse ? '◀ ' : ''}ramp`
+      : `${item.reverse ? '◀ ' : ''}${round2(item.speed)}×`) + status
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'
+  const tw = ctx.measureText(tag).width + 10
+  ctx.fillRect(right - tw, y, tw, 16)
+  ctx.fillStyle = interp?.state === 'failed' ? s.palette.playhead : s.palette.snap
+  ctx.fillText(tag, right - tw + 5, y + 8)
+}
+
+/** Прижатые к краям вида подпись (слева) и метка скорости (справа) элемента — как в drawItem. */
+function drawItemText(
+  ctx: CanvasRenderingContext2D,
+  s: Scene,
+  item: TrackItem,
+  start: number,
+  top: number,
+  height: number,
+  st: ItemStyle,
+  left: boolean,
+  right: boolean,
+): void {
+  const { view: v } = s
+  const vx0 = Math.max(timeToX(start, v), -2)
+  const vx1 = Math.min(timeToX(start + item.duration, v), v.width + 2)
+  const w = vx1 - vx0
+  const y = top + 2
+  const h = height - 4
+  ctx.save()
+  ctx.globalAlpha = st.ghost ? 0.75 : st.dim ? 0.4 : st.aiNew ? 0.6 : 1
+  ctx.beginPath()
+  ctx.roundRect(vx0, y, w, h, 3)
+  ctx.clip()
+  const asset = isClip(item) ? s.assets(item.assetId) : undefined
+  if (left && w > 24) drawLabel(ctx, s, item, asset, vx0, y, w)
+  if (right && isClip(item) && w > 60) drawSpeedTag(ctx, s, item, st, vx1, y)
   ctx.restore()
 }
 

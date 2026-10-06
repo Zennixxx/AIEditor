@@ -332,23 +332,34 @@ class ApiError(BaseModel):
     error: ApiErrorBody
 
 
-class Health(BaseModel):
+class DiskInfo(BaseModel):
+    """
+    Диск каталога данных бэка.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
         populate_by_name=True,
         alias_generator=to_camel,
     )
-    status: Literal["ok"] = "ok"
-    version: str
-    schema_version: int = Field(...)
-    ffmpeg: bool
-    rife: bool
-    demucs: bool
-    gemini: bool
-    registry_errors: list[str] | None = Field(
-        None,
-        description="Ошибки проверки shared/effects.json и shared/styles.json при старте бэка; поля нет — реестры в порядке.",
+    path: str = Field(..., description="абсолютный путь каталога данных")
+    free: int = Field(..., description="свободно, байт", ge=0)
+    total: int = Field(..., description="всего, байт", ge=0)
+
+
+class CacheCleanupResult(BaseModel):
+    """
+    Ответ DELETE /cache (CONTRACT §8.8).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
     )
+    removed_assets: list[str] = Field(..., description="id удалённых ассетов (исходных и производных)")
+    gemini_files: int = Field(..., description="удалено записей кэша ответов Gemini", ge=0)
+    freed_bytes: int = Field(..., ge=0)
 
 
 class Thumbs(BaseModel):
@@ -1442,6 +1453,30 @@ class TimeRemapVectorsFile(BaseModel):
     version: int
     tolerance: float
     vectors: list[TimeRemapVector]
+
+
+class Health(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+    status: Literal["ok"] = "ok"
+    version: str
+    schema_version: int = Field(...)
+    ffmpeg: bool
+    rife: bool
+    demucs: bool
+    gemini: bool
+    gpus: list[str] | None = Field(
+        None,
+        description="Vulkan-устройства, которые видит rife-ncnn-vulkan; пустой список — RIFE не нашёл GPU (интерполяция через minterpolate); поля нет — RIFE нет или проверка ещё идёт.",
+    )
+    disk: DiskInfo
+    registry_errors: list[str] | None = Field(
+        None,
+        description="Ошибки проверки shared/effects.json и shared/styles.json при старте бэка; поля нет — реестры в порядке.",
+    )
 
 
 class ImportResponse(BaseModel):
